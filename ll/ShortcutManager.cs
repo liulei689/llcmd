@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 
 namespace LL;
 
@@ -45,6 +46,17 @@ public static class ShortcutManager
                 UseShellExecute = true,
                 Arguments = string.Join(" ", args)
             };
+
+            // 设置工作目录，解决模拟器等程序找不到配置文件或 ROM 的问题
+            if (Path.IsPathRooted(path))
+            {
+                string? dir = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                {
+                    psi.WorkingDirectory = dir;
+                }
+            }
+
             Process.Start(psi);
             UI.PrintSuccess("启动成功!");
         }

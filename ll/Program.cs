@@ -61,6 +61,7 @@ void Initialize()
     ShortcutManager.RegisterShortcut("remote", "Sunlogin", @"C:\Program Files\Oray\SunLogin\SunloginClient\SunloginClient.exe");
     ShortcutManager.RegisterShortcut("sscom",  "SSCOM Serial", @"C:\Users\liu\OneDrive\Desktop\新建文件夹 (2)\sscom5.13.1.exe");
     ShortcutManager.RegisterShortcut("jmeter", "Apache JMeter", @"C:\Users\liu\OneDrive\Desktop\apache-jmeter-5.6.2\bin\jmeter.bat");
+    ShortcutManager.RegisterShortcut("nes",    "小霸王游戏机", @"C:\Users\liu\Downloads\xbwmnq204\小霸王游戏机327合1\smynesc.exe");
 }
 
 void ShowList()
