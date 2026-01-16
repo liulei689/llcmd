@@ -16,6 +16,11 @@ Console.Title = "LL Command Line Interface";
 var commands = new Dictionary<string, (string Description, Action<string[]> Action)>();
 var shortcuts = new Dictionary<string, (string Description, string Path)>();
 
+// 状态管理
+CancellationTokenSource? shutdownCts = null;
+Task? shutdownTask = null;
+DateTime? shutdownTargetTime = null;
+
 // 初始化配置
 Initialize();
 
@@ -41,6 +46,8 @@ void Initialize()
     RegisterCommand("list", "查看指令清单 / List all commands", _ => ShowList());
     RegisterCommand("o",    "启动程序 / Open Program", args => OpenProgram(args));
     RegisterCommand("sd",   "倒计时关机 / Shutdown Timer", args => StartShutdownSequence(args));
+    RegisterCommand("sdst", "关机倒计时状态 / Shutdown timer status", _ => ShowShutdownStatus());
+    RegisterCommand("sdc",  "取消关机倒计时 / Cancel shutdown timer", _ => CancelShutdownTimer());
     RegisterCommand("abort","取消系统关机 / Abort System Shutdown", _ => AbortSystemShutdown());
     RegisterCommand("size", "计算目录大小 / Calculate directory size", args => CheckDirectorySize(args));
     RegisterCommand("time", "系统时间 / System time", _ => ShowTime());
@@ -67,6 +74,32 @@ void Initialize()
     RegisterShortcut("remote", "Sunlogin", @"C:\Program Files\Oray\SunLogin\SunloginClient\SunloginClient.exe");
     RegisterShortcut("sscom",  "SSCOM Serial", @"C:\Users\liu\OneDrive\Desktop\新建文件夹 (2)\sscom5.13.1.exe");
     RegisterShortcut("jmeter", "Apache JMeter", @"C:\Users\liu\OneDrive\Desktop\apache-jmeter-5.6.2\bin\jmeter.bat");
+}
+
+void ShowShutdownStatus()
+{
+    if (shutdownTargetTime == null || shutdownTask == null || shutdownTask.IsCompleted)
+    {
+        PrintInfo("当前没有正在运行的关机倒计时。");
+        return;
+    }
+    var remaining = shutdownTargetTime.Value - DateTime.Now;
+    if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+    PrintResult("倒计时", remaining.ToString(@"hh\:mm\:ss"));
+    PrintResult("目标时间", shutdownTargetTime.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+}
+
+void CancelShutdownTimer()
+{
+    if (shutdownCts != null && !shutdownCts.IsCancellationRequested)
+    {
+        shutdownCts.Cancel();
+        PrintSuccess("已请求取消倒计时 (不会发送邮件)。");
+    }
+    else
+    {
+        PrintInfo("当前没有正在运行的关机倒计时。");
+    }
 }
 
 void AbortSystemShutdown()
@@ -133,6 +166,12 @@ void OpenProgram(string[] args)
 
 void StartShutdownSequence(string[] args)
 {
+    if (shutdownTask != null && !shutdownTask.IsCompleted)
+    {
+        PrintError("已有倒计时正在运行。使用 'sdst' 查看状态，或 'sdc' 取消。");
+        return;
+    }
+
     // Help / Usage check
     if (args.Length > 0 && (args[0] == "?" || args[0].ToLower() == "help"))
     {
@@ -141,8 +180,9 @@ void StartShutdownSequence(string[] args)
         PrintInfo("  sd        -> 进入交互设置模式");
         PrintInfo("  sd 30m    -> 30 分钟");
         PrintInfo("  sd 1h     -> 1 小时");
-        PrintInfo("  sd 120s   -> 120 秒");
-        PrintInfo("  sd 1.5    -> 1.5 小时");
+        PrintInfo("停止/管理:");
+        PrintInfo("  sdst      -> 查看状态");
+        PrintInfo("  sdc       -> 取消倒计时");
         return;
     }
 
@@ -154,7 +194,6 @@ void StartShutdownSequence(string[] args)
         if (!TryParseTime(input, out totalSeconds))
         {
              PrintError($"时间格式错误: '{input}'");
-             PrintInfo("示例: sd 30m (30分钟), sd 1.5h (1.5小时), sd 300s (秒)");
              return;
         }
     }
@@ -178,72 +217,53 @@ void StartShutdownSequence(string[] args)
 
     TimeSpan duration = TimeSpan.FromSeconds(totalSeconds);
     DateTime targetTime = DateTime.Now.Add(duration);
+    shutdownTargetTime = targetTime;
 
     PrintHeader("SHUTDOWN SEQUENCE INITIATED");
     PrintResult("Duration", duration.ToString(@"hh\:mm\:ss"));
     PrintResult("Target Time", targetTime.ToString("yyyy-MM-dd HH:mm:ss"));
-    PrintInfo("Press [ESC] or [Ctrl+C] to cancel...");
+    PrintInfo("倒计时已在后台运行 (查看窗口标题)");
+    PrintInfo("命令行可继续使用。输入 'sdc' 可取消。");
     Console.WriteLine();
 
-    bool cancelled = false;
-    Console.CursorVisible = false;
+    shutdownCts = new CancellationTokenSource();
+    var token = shutdownCts.Token;
 
-    // 捕获 Ctrl+C 以便优雅退出倒计时
-    ConsoleCancelEventHandler cancelHandler = (sender, e) => {
-        e.Cancel = true; // 防止程序直接退出
-        cancelled = true;
-    };
-    Console.CancelKeyPress += cancelHandler;
-
-    try
+    shutdownTask = Task.Run(async () =>
     {
-        while (DateTime.Now < targetTime && !cancelled)
-        {
-            if (Console.KeyAvailable)
-            {
-                var key = Console.ReadKey(true);
-                if (key.Key == ConsoleKey.Escape)
-                {
-                    cancelled = true;
-                    break;
-                }
-            }
-
-            TimeSpan remaining = targetTime - DateTime.Now;
-            
-            string timeStr = remaining.ToString(@"hh\:mm\:ss");
-            Console.ForegroundColor = remaining.TotalSeconds <= 60 ? ConsoleColor.Red : ConsoleColor.Green;
-            Console.Write($"\r >> SYSTEM SHUTDOWN IN: {timeStr}   ");
-            Console.ResetColor();
-            
-            Thread.Sleep(100);
-        }
-    }
-    finally
-    {
-        Console.CancelKeyPress -= cancelHandler;
-        Console.CursorVisible = true;
-        Console.WriteLine();
-    }
-
-    if (cancelled)
-    {
-        PrintSuccess("倒计时已取消 (Countdown Cancelled)");
-    }
-    else
-    {
-        PrintInfo("Timer reached zero. Executing shutdown protocols...");
-        SendEmailTo($"Shutdown initiated automatically at {DateTime.Now}");
-        
+        string originalTitle = Console.Title;
         try
         {
+            while (DateTime.Now < targetTime)
+            {
+                token.ThrowIfCancellationRequested();
+                var remaining = targetTime - DateTime.Now;
+                if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
+
+                Console.Title = $"LL - Shutdown in {remaining:hh\\:mm\\:ss}";
+                await Task.Delay(1000, token);
+            }
+
+            Console.Title = originalTitle;
+            // 倒计时结束，发送邮件并关机
+            SendEmailTo($"Shutdown initiated automatically at {DateTime.Now}");
             Process.Start(new ProcessStartInfo("shutdown", "/s /t 0") { CreateNoWindow = true, UseShellExecute = false });
+        }
+        catch (OperationCanceledException)
+        {
+            Console.Title = originalTitle;
+            // 取消倒计时，不发送邮件
         }
         catch (Exception ex)
         {
-            PrintError($"Failed to execute shutdown command: {ex.Message}");
+            Console.Title = originalTitle;
+            try
+            {
+                File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "log.txt"), $"{DateTime.Now}: {ex.Message}\r\n");
+            }
+            catch { }
         }
-    }
+    });
 }
 
 bool TryParseTime(string input, out double totalSeconds)
