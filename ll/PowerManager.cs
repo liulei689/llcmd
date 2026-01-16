@@ -107,6 +107,7 @@ public static class PowerManager
         double idleThresholdSeconds = 7200; // 默认2小时 (触发关机)
         const double enterIdleModeSeconds = 10; // 测试用：超过 10 秒进入“空闲监测状态”
         const double exitIdleModeSeconds = 1;  // 低于 1 秒退出“空闲监测状态”
+        const double lockScreenSeconds = 20;   // 空闲达到 20 秒自动锁屏
 
         if (args.Length > 0)
         {
@@ -151,6 +152,7 @@ public static class PowerManager
             {
                 bool isIdleMode = false;
                 bool guardianAutoActive = false;
+                bool lockedThisIdleSession = false;
                 while (!token.IsCancellationRequested)
                 {
                     uint idleTimeMs = GetIdleTime();
@@ -163,10 +165,22 @@ public static class PowerManager
                     if (!isIdleMode && idleSeconds >= enterIdleModeSeconds)
                     {
                         isIdleMode = true;
+                        lockedThisIdleSession = false;
                     }
                     else if (isIdleMode && idleSeconds < exitIdleModeSeconds)
                     {
                         isIdleMode = false;
+                        lockedThisIdleSession = false;
+                    }
+
+                    if (!lockedThisIdleSession && idleSeconds >= lockScreenSeconds)
+                    {
+                        lockedThisIdleSession = true;
+                        try
+                        {
+                            NativeMethods.LockWorkStation();
+                        }
+                        catch { }
                     }
 
                     // Auto toggle Guardian mode when entering/leaving idle mode.
