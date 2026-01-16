@@ -25,7 +25,7 @@ public static class CommandManager
 
     public static void ShowCommands()
     {
-        UI.PrintHeader("功能指令 (Commands)");
+        UI.PrintHeader("系统功能指令");
         foreach (var cmd in _commands)
         {
             UI.PrintItem(cmd.Key, cmd.Value.Description);

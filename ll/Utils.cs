@@ -35,7 +35,7 @@ public static class Utils
 
     public static void SendEmailTo(string text)
     {
-        UI.PrintInfo("Sending notification email...");
+        UI.PrintInfo("正在发送通知邮件...");
         try
         {
             using (MailMessage mailMessage = new MailMessage())
@@ -53,12 +53,12 @@ public static class Utils
                 smtpClient.Credentials = new NetworkCredential("1243500742@qq.com", "***");
 
                 smtpClient.Send(mailMessage);
-                UI.PrintSuccess("Email sent successfully!");
+                UI.PrintSuccess("邮件发送成功!");
             }
         }
         catch (Exception ex)
         {
-            UI.PrintError($"Email failed: {ex.Message}");
+            UI.PrintError($"邮件发送失败: {ex.Message}");
             try
             {
                 File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "log.txt"), $"{DateTime.Now}: {ex.Message}\r\n");
@@ -78,5 +78,11 @@ public static class Utils
             counter++;
         }
         return string.Format("{0:n1} {1}", number, suffixes[counter]);
+    }
+
+    public static string Truncate(string value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value)) return value;
+        return value.Length <= maxLength ? value : value.Substring(0, maxLength);
     }
 }

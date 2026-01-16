@@ -73,7 +73,7 @@ public static class ShortcutManager
 
     public static void ShowShortcuts()
     {
-        UI.PrintHeader("程序清单 (Use 'o' to launch)");
+        UI.PrintHeader("程序清单 (输入 'o' 启动)");
         foreach (var sc in _shortcuts)
         {
             UI.PrintItem(sc.Key, $"{sc.Value.Description}");

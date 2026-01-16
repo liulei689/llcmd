@@ -15,7 +15,7 @@ public static class PowerManager
     {
         if (_shutdownTask != null && !_shutdownTask.IsCompleted)
         {
-            UI.PrintError("已有任务正在运行。使用 'sdst' 查看状态，或 'sdc' 取消。");
+            UI.PrintError("已有任务正在运行。使用 'st' 查看状态，或 'c' 取消。");
             return;
         }
 
@@ -54,13 +54,13 @@ public static class PowerManager
 
         TimeSpan duration = TimeSpan.FromSeconds(totalSeconds);
         TargetTime = DateTime.Now.Add(duration);
-        CurrentMode = "Countdown";
+        CurrentMode = "倒计时关机";
 
-        UI.PrintHeader("SHUTDOWN SEQUENCE INITIATED");
-        UI.PrintResult("Duration", duration.ToString(@"hh\:mm\:ss"));
-        UI.PrintResult("Target Time", TargetTime.Value.ToString("yyyy-MM-dd HH:mm:ss"));
+        UI.PrintHeader("关机程序已启动");
+        UI.PrintResult("时长", duration.ToString(@"hh\:mm\:ss"));
+        UI.PrintResult("目标时间", TargetTime.Value.ToString("yyyy-MM-dd HH:mm:ss"));
         UI.PrintInfo("倒计时已在后台运行 (查看窗口标题)");
-        UI.PrintInfo("命令行可继续使用。输入 'sdc' 可取消。");
+        UI.PrintInfo("命令行可继续使用。输入 'c' 可取消。");
 
         _shutdownCts = new CancellationTokenSource();
         var token = _shutdownCts.Token;
@@ -76,12 +76,12 @@ public static class PowerManager
                     var remaining = TargetTime.Value - DateTime.Now;
                     if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
 
-                    Console.Title = $"LL - Shutdown in {remaining:hh\\:mm\\:ss}";
+                    Console.Title = $"LL - 剩余时间 {remaining:hh\\:mm\\:ss}";
                     await Task.Delay(1000, token);
                 }
 
                 Console.Title = originalTitle;
-                Utils.SendEmailTo($"Shutdown initiated automatically at {DateTime.Now}");
+                Utils.SendEmailTo($"系统于 {DateTime.Now} 自动启动关机程序");
                 ExecuteShutdown();
             }
             catch (OperationCanceledException)
@@ -100,11 +100,13 @@ public static class PowerManager
     {
         if (_shutdownTask != null && !_shutdownTask.IsCompleted)
         {
-            UI.PrintError("已有任务正在运行。使用 'sdst' 查看状态，或 'sdc' 取消。");
+            UI.PrintError("已有任务正在运行。使用 'st' 查看状态，或 'c' 取消。");
             return;
         }
 
-        double idleThresholdSeconds = 7200; // 默认2小时
+        double idleThresholdSeconds = 7200; // 默认2小时 (触发关机)
+        const double enterIdleModeSeconds = 10; // 测试用：超过 10 秒进入“空闲监测状态”
+        const double exitIdleModeSeconds = 1;  // 低于 1 秒退出“空闲监测状态”
 
         if (args.Length > 0)
         {
@@ -131,13 +133,13 @@ public static class PowerManager
             }
         }
 
-        CurrentMode = "IdleMonitor";
+        CurrentMode = "空闲关机监听";
         TargetTime = null; // Idle mode doesn't have a fixed target time initially
 
-        UI.PrintHeader("IDLE MONITOR ACTIVATED");
-        UI.PrintResult("Idle Threshold", TimeSpan.FromSeconds(idleThresholdSeconds).ToString(@"hh\:mm\:ss"));
+        UI.PrintHeader("空闲关机监听已激活");
+        UI.PrintResult("空闲阈值", TimeSpan.FromSeconds(idleThresholdSeconds).ToString(@"hh\:mm\:ss"));
         UI.PrintInfo("正在监听系统空闲状态... 无操作达时限将自动关机。");
-        UI.PrintInfo("命令行可继续使用。输入 'sdc' 可取消监听。");
+        UI.PrintInfo("命令行可继续使用。输入 'c' 可取消监听。");
 
         _shutdownCts = new CancellationTokenSource();
         var token = _shutdownCts.Token;
@@ -147,21 +149,50 @@ public static class PowerManager
             string originalTitle = Console.Title;
             try
             {
+                bool isIdleMode = false;
+                bool guardianAutoActive = false;
                 while (!token.IsCancellationRequested)
                 {
                     uint idleTimeMs = GetIdleTime();
                     double idleSeconds = idleTimeMs / 1000.0;
+
+                    var idle = TimeSpan.FromMilliseconds(idleTimeMs);
+                    var threshold = TimeSpan.FromSeconds(idleThresholdSeconds);
+
+                    // Idle mode state machine (for UI/monitoring only)
+                    if (!isIdleMode && idleSeconds >= enterIdleModeSeconds)
+                    {
+                        isIdleMode = true;
+                    }
+                    else if (isIdleMode && idleSeconds < exitIdleModeSeconds)
+                    {
+                        isIdleMode = false;
+                    }
+
+                    // Auto toggle Guardian mode when entering/leaving idle mode.
+                    if (isIdleMode && !guardianAutoActive)
+                    {
+                        guardianAutoActive = true;
+                        GuardianManager.ToggleGuardianMode(Array.Empty<string>());
+                    }
+                    else if (!isIdleMode && guardianAutoActive)
+                    {
+                        guardianAutoActive = false;
+                        GuardianManager.ToggleGuardianMode(Array.Empty<string>());
+                    }
                     
                     if (idleSeconds >= idleThresholdSeconds)
                     {
                         Console.Title = originalTitle;
                         UI.PrintInfo($"检测到长时间无人使用 ({TimeSpan.FromSeconds(idleSeconds):hh\\:mm\\:ss})，执行自动关机。");
-                        Utils.SendEmailTo($"Idle shutdown initiated at {DateTime.Now} after {idleSeconds}s of inactivity.");
+                        Utils.SendEmailTo($"系统于 {DateTime.Now} 因长时间无操作 ({idleSeconds}秒) 自动关机。");
                         ExecuteShutdown();
                         break;
                     }
 
-                    Console.Title = $"LL - Idle: {TimeSpan.FromSeconds(idleSeconds):hh\\:mm\\:ss} / {TimeSpan.FromSeconds(idleThresholdSeconds):hh\\:mm\\:ss}";
+                    // Always show full idle time (minutes keep increasing; not stuck at 59s)
+                    // Keep UI quiet: only reflect state in title.
+                    Console.Title = $"LL - 空闲: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
                     await Task.Delay(2000, token);
                 }
             }
@@ -181,16 +212,16 @@ public static class PowerManager
             return;
         }
 
-        UI.PrintResult("当前模式", CurrentMode ?? "Unknown");
+        UI.PrintResult("当前模式", CurrentMode ?? "未知");
 
-        if (CurrentMode == "Countdown" && TargetTime.HasValue)
+        if (CurrentMode == "倒计时关机" && TargetTime.HasValue)
         {
             var remaining = TargetTime.Value - DateTime.Now;
             if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
             UI.PrintResult("剩余时间", remaining.ToString(@"hh\:mm\:ss"));
             UI.PrintResult("目标时间", TargetTime.Value.ToString("yyyy-MM-dd HH:mm:ss"));
         }
-        else if (CurrentMode == "IdleMonitor")
+        else if (CurrentMode == "空闲关机监听")
         {
             uint idleTimeMs = GetIdleTime();
             UI.PrintResult("当前空闲", TimeSpan.FromMilliseconds(idleTimeMs).ToString(@"hh\:mm\:ss"));
@@ -241,14 +272,11 @@ public static class PowerManager
 
     private static void PrintShutdownHelp()
     {
-        UI.PrintInfo("=== 倒计时关机使用说明 ===");
-        UI.PrintInfo("基本用法: sd [时间][单位]");
-        UI.PrintInfo("  sd        -> 进入交互设置模式");
-        UI.PrintInfo("  sd 30m    -> 30 分钟");
-        UI.PrintInfo("  sd 1h     -> 1 小时");
-        UI.PrintInfo("停止/管理:");
-        UI.PrintInfo("  sdst      -> 查看状态");
-        UI.PrintInfo("  sdc       -> 取消倒计时");
+        UI.PrintInfo("=== 关机管理说明 ===");
+        UI.PrintInfo(" sd 30m   -> 30分钟后关机");
+        UI.PrintInfo(" idle 1h  -> 闲置1小时关机");
+        UI.PrintInfo(" st       -> 查看状态");
+        UI.PrintInfo(" c        -> 取消任务");
     }
 
     private static void LogException(Exception ex)

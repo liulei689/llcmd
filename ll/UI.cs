@@ -18,9 +18,9 @@ public static class UI
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.WriteLine("============================================================");
         Console.ForegroundColor = ConsoleColor.White;
-        Console.WriteLine($" SESSION ID : {Guid.NewGuid().ToString().Split('-')[0].ToUpper()} | USER: {Environment.UserName}");
-        Console.WriteLine($" SYSTEM     : {Environment.OSVersion} | .NET: {Environment.Version}");
-        Console.WriteLine($" TIMESTAMP  : {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        Console.WriteLine($" 会话 ID    : {Guid.NewGuid().ToString().Split('-')[0].ToUpper()} | 用户: {Environment.UserName}");
+        Console.WriteLine($" 系统版本   : {Environment.OSVersion} | .NET: {Environment.Version}");
+        Console.WriteLine($" 当前时间   : {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         Console.ForegroundColor = ConsoleColor.DarkGray;
         Console.WriteLine("============================================================");
         Console.ResetColor();

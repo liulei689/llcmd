@@ -8,7 +8,7 @@ using LL;
 // 环境配置
 Console.OutputEncoding = Encoding.UTF8;
 Console.InputEncoding = Encoding.UTF8;
-Console.Title = "LL Command Line Interface";
+Console.Title = "LL 命令行工具";
 
 // 初始化并注册
 Initialize();
@@ -29,19 +29,20 @@ else
 void Initialize()
 {
     // 系统指令
-    CommandManager.RegisterCommand("help", "查看指令清单 / List all commands", _ => ShowList());
-    CommandManager.RegisterCommand("list", "查看指令清单 / List all commands", _ => ShowList());
-    CommandManager.RegisterCommand("o",    "启动程序 / Open Program", args => ShortcutManager.OpenProgram(args));
-    CommandManager.RegisterCommand("sd",   "倒计时关机 / Shutdown Timer", args => PowerManager.StartShutdownSequence(args));
-    CommandManager.RegisterCommand("idle", "监听空闲自动关机 / Idle shutdown monitor", args => PowerManager.StartIdleMonitor(args));
-    CommandManager.RegisterCommand("sdst", "关机倒计时状态 / Shutdown status", _ => PowerManager.ShowStatus());
-    CommandManager.RegisterCommand("sdc",  "取消任务 / Cancel power task", _ => PowerManager.CancelTask());
-    CommandManager.RegisterCommand("abort","取消系统关机 / Abort System Shutdown", _ => PowerManager.AbortSystemShutdown());
-    CommandManager.RegisterCommand("size", "计算目录大小 / Calculate directory size", args => SystemCommands.CheckDirectorySize(args));
-    CommandManager.RegisterCommand("time", "系统时间 / System time", args => SystemCommands.ShowTime(args));
-    CommandManager.RegisterCommand("sys",  "系统信息 / System Info", args => SystemCommands.ShowSysInfo(args));
-    CommandManager.RegisterCommand("clr",  "清屏 / Clear screen", _ => Console.Clear());
-    CommandManager.RegisterCommand("exit", "退出 / Exit", _ => Environment.Exit(0));
+    CommandManager.RegisterCommand("help", "查看帮助", _ => ShowList());
+    CommandManager.RegisterCommand("list", "指令清单", _ => ShowList());
+    CommandManager.RegisterCommand("o",    "启动程序", args => ShortcutManager.OpenProgram(args));
+    CommandManager.RegisterCommand("sd",   "倒数关机", args => PowerManager.StartShutdownSequence(args));
+    CommandManager.RegisterCommand("idle", "空闲关机", args => PowerManager.StartIdleMonitor(args));
+    CommandManager.RegisterCommand("st",   "任务状态", _ => PowerManager.ShowStatus());
+    CommandManager.RegisterCommand("c",    "取消任务", _ => PowerManager.CancelTask());
+    CommandManager.RegisterCommand("abort","中止关机", _ => PowerManager.AbortSystemShutdown());
+    CommandManager.RegisterCommand("size", "目录大小", args => SystemCommands.CheckDirectorySize(args));
+    CommandManager.RegisterCommand("time", "系统时间", args => SystemCommands.ShowTime(args));
+    CommandManager.RegisterCommand("sys",  "系统信息", args => SystemCommands.ShowSysInfo(args));
+    CommandManager.RegisterCommand("gd",   "守护模式", args => GuardianManager.ToggleGuardianMode(args));
+    CommandManager.RegisterCommand("clr",  "清屏", _ => Console.Clear());
+    CommandManager.RegisterCommand("exit", "退出", _ => Environment.Exit(0));
 
     // 快捷启动程序注册
     ShortcutManager.RegisterShortcut("vs",     "Visual Studio", "devenv");
@@ -74,8 +75,8 @@ void ShowList()
 
 void EnterInteractiveMode()
 {
-    UI.PrintSuccess("交互模式已就绪 (Interactive Mode Ready)");
-    UI.PrintInfo("Tips: 输入 'help' 查看帮助，'sd 30m' 倒计时关机，'idle 2h' 空闲关机");
+    UI.PrintSuccess("交互模式已就绪");
+    // 提示信息移除：保持界面干净
     
     while (true)
     {
@@ -89,7 +90,21 @@ void EnterInteractiveMode()
         Console.Write(" $ ");
         Console.ResetColor();
 
-        string? input = Console.ReadLine();
+        string? input;
+        try
+        {
+            input = Console.ReadLine();
+        }
+        catch (IOException)
+        {
+            // Console input stream closed (e.g. piped host detached). Exit cleanly.
+            return;
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(input)) continue;
 
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);

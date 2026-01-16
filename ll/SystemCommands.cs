@@ -11,10 +11,10 @@ public static class SystemCommands
 
     public static void ShowSysInfo(string[] args)
     {
-        UI.PrintResult("OS Version", Environment.OSVersion.ToString());
-        UI.PrintResult("Machine", Environment.MachineName);
-        UI.PrintResult("Cores", Environment.ProcessorCount.ToString());
-        UI.PrintResult("Runtime", Environment.Version.ToString());
+        UI.PrintResult("操作系统", Environment.OSVersion.ToString());
+        UI.PrintResult("计算机名", Environment.MachineName);
+        UI.PrintResult("核心数", Environment.ProcessorCount.ToString());
+        UI.PrintResult("运行环境", Environment.Version.ToString());
     }
 
     public static void CheckDirectorySize(string[] args)
