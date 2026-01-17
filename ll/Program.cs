@@ -76,6 +76,7 @@ void Initialize()
     CommandManager.RegisterCommand("netfix", "网络修复", _ => QuickCommands.NetFix());
     CommandManager.RegisterCommand("lan", "扫描局域网设备", args => LanScanner.Scan(args));
     CommandManager.RegisterCommand("myip", "查看本机 IP", _ => QuickCommands.ShowMyIp());
+    CommandManager.RegisterCommand("netspeed", "测当前网速", args => NetSpeed.Measure(args));
 
     // 快捷启动程序注册
     ShortcutManager.RegisterShortcut("vs",     "Visual Studio", "devenv");

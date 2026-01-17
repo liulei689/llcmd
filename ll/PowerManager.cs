@@ -6,6 +6,11 @@ namespace LL;
 
 public static class PowerManager
 {
+    // 可调参数（按需修改）
+    public static double IdleEnterSeconds { get; set; } = 100; // 空闲超过多少秒进入“空闲状态”(用于触发守护/锁屏等)
+    public static double IdleExitSeconds { get; set; } = 1;   // 空闲低于多少秒认为恢复操作
+    public static double IdleLockSeconds { get; set; } = 100;  // 空闲达到多少秒自动锁屏
+
     private static CancellationTokenSource? _shutdownCts;
     private static Task? _shutdownTask;
     public static DateTime? TargetTime { get; private set; }
@@ -105,9 +110,6 @@ public static class PowerManager
         }
 
         double idleThresholdSeconds = 7200; // 默认2小时 (触发关机)
-        const double enterIdleModeSeconds = 10; // 测试用：超过 10 秒进入“空闲监测状态”
-        const double exitIdleModeSeconds = 1;  // 低于 1 秒退出“空闲监测状态”
-        const double lockScreenSeconds = 20;   // 空闲达到 20 秒自动锁屏
 
         if (args.Length > 0)
         {
@@ -162,18 +164,18 @@ public static class PowerManager
                     var threshold = TimeSpan.FromSeconds(idleThresholdSeconds);
 
                     // Idle mode state machine (for UI/monitoring only)
-                    if (!isIdleMode && idleSeconds >= enterIdleModeSeconds)
+                    if (!isIdleMode && idleSeconds >= IdleEnterSeconds)
                     {
                         isIdleMode = true;
                         lockedThisIdleSession = false;
                     }
-                    else if (isIdleMode && idleSeconds < exitIdleModeSeconds)
+                    else if (isIdleMode && idleSeconds < IdleExitSeconds)
                     {
                         isIdleMode = false;
                         lockedThisIdleSession = false;
                     }
 
-                    if (!lockedThisIdleSession && idleSeconds >= lockScreenSeconds)
+                    if (!lockedThisIdleSession && idleSeconds >= IdleLockSeconds)
                     {
                         lockedThisIdleSession = true;
                         try
