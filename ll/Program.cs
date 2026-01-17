@@ -31,6 +31,7 @@ void Initialize()
     // 系统指令
     CommandManager.RegisterCommand("help", "查看帮助", _ => ShowList());
     CommandManager.RegisterCommand("list", "指令清单", _ => ShowList());
+    CommandManager.RegisterCommand("ls", "指令清单", _ => ShowList());
     CommandManager.RegisterCommand("o",    "启动程序", args => ShortcutManager.OpenProgram(args));
     CommandManager.RegisterCommand("sd",   "倒数关机", args => PowerManager.StartShutdownSequence(args));
     CommandManager.RegisterCommand("idle", "空闲关机", args => PowerManager.StartIdleMonitor(args));
@@ -43,6 +44,36 @@ void Initialize()
     CommandManager.RegisterCommand("gd",   "守护模式", args => GuardianManager.ToggleGuardianMode(args));
     CommandManager.RegisterCommand("clr",  "清屏", _ => Console.Clear());
     CommandManager.RegisterCommand("exit", "退出", _ => Environment.Exit(0));
+
+    // 实用工具（扁平化：直接用命令名，不用 util 前缀）
+    CommandManager.RegisterCommand("ps", "进程列表", args => UtilityCommands.Execute(["ps", ..args]));
+    CommandManager.RegisterCommand("kill", "结束进程", args => UtilityCommands.Execute(["kill", ..args]));
+    CommandManager.RegisterCommand("port", "端口检测", args => UtilityCommands.Execute(["port", ..args]));
+    CommandManager.RegisterCommand("ip", "网络信息", _ => UtilityCommands.Execute(["ip"]));
+    CommandManager.RegisterCommand("curl", "HTTP GET", args => UtilityCommands.Execute(["curl", ..args]));
+    CommandManager.RegisterCommand("dns", "DNS 解析", args => UtilityCommands.Execute(["dns", ..args]));
+    CommandManager.RegisterCommand("find", "查找文件", args => UtilityCommands.Execute(["find", ..args]));
+    CommandManager.RegisterCommand("watch", "监听目录", args => UtilityCommands.Execute(["watch", ..args]));
+    CommandManager.RegisterCommand("clip", "剪贴板", args => UtilityCommands.Execute(["clip", ..args]));
+    CommandManager.RegisterCommand("path", "PATH", args => UtilityCommands.Execute(["path", ..args]));
+    CommandManager.RegisterCommand("env", "环境变量", args => UtilityCommands.Execute(["env", ..args]));
+    CommandManager.RegisterCommand("clean", "清理", args => UtilityCommands.Execute(["clean", ..args]));
+
+    // 常用快捷操作（面向普通用户）
+    CommandManager.RegisterCommand("task", "任务管理器", _ => QuickCommands.OpenTaskManager());
+    CommandManager.RegisterCommand("dev", "设备管理器", _ => QuickCommands.OpenDeviceManager());
+    CommandManager.RegisterCommand("ctrl", "控制面板", _ => QuickCommands.OpenControlPanel());
+    CommandManager.RegisterCommand("set", "系统设置", _ => QuickCommands.OpenSettings());
+    CommandManager.RegisterCommand("netset", "网络设置", _ => QuickCommands.OpenNetworkSettings());
+    CommandManager.RegisterCommand("sound", "声音设置", _ => QuickCommands.OpenSoundSettings());
+    CommandManager.RegisterCommand("disp", "显示设置", _ => QuickCommands.OpenDisplaySettings());
+    CommandManager.RegisterCommand("store", "存储管理", _ => QuickCommands.OpenStorageSettings());
+    CommandManager.RegisterCommand("desk", "打开桌面", _ => QuickCommands.OpenDesktopFolder());
+    CommandManager.RegisterCommand("tmp", "打开临时目录", _ => QuickCommands.OpenTempFolder());
+    CommandManager.RegisterCommand("recycle", "回收站", _ => QuickCommands.OpenRecycleBin());
+    CommandManager.RegisterCommand("snip", "截图工具", _ => QuickCommands.OpenSnippingTool());
+    CommandManager.RegisterCommand("dnsflush", "清 DNS 缓存", _ => QuickCommands.FlushDns());
+    CommandManager.RegisterCommand("netfix", "网络修复", _ => QuickCommands.NetFix());
 
     // 快捷启动程序注册
     ShortcutManager.RegisterShortcut("vs",     "Visual Studio", "devenv");
@@ -67,8 +98,10 @@ void Initialize()
 
 void ShowList()
 {
+    UI.PrintHeader("指令列表");
     CommandManager.ShowCommands();
     Console.WriteLine();
+    UI.PrintHeader("快捷启动");
     ShortcutManager.ShowShortcuts();
     Console.WriteLine();
 }
