@@ -98,8 +98,12 @@ public static class NetSpeed
     {
         UI.PrintHeader($"当前网速（实时 {seconds}s，按任意键退出）");
 
-        bool oldCursor = Console.CursorVisible;
-        Console.CursorVisible = false;
+        bool oldCursor = false;
+        if (OperatingSystem.IsWindows())
+        {
+            oldCursor = Console.CursorVisible;
+            Console.CursorVisible = false;
+        }
         int startTop = Console.CursorTop;
 
         try
@@ -146,7 +150,8 @@ public static class NetSpeed
         }
         finally
         {
-            Console.CursorVisible = oldCursor;
+            if (OperatingSystem.IsWindows())
+                Console.CursorVisible = oldCursor;
             Console.WriteLine();
         }
     }
