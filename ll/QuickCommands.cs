@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 
 namespace LL;
 
@@ -31,6 +33,32 @@ public static class QuickCommands
         // Windows 10/11
         Start("snippingtool");
         // If missing, user can install; keep silent.
+    }
+
+    public static void ShowMyIp()
+    {
+        UI.PrintHeader("本机 IP");
+        foreach (var ni in NetworkInterface.GetAllNetworkInterfaces())
+        {
+            if (ni.OperationalStatus != OperationalStatus.Up) continue;
+            if (ni.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
+
+            var props = ni.GetIPProperties();
+            var v4 = props.UnicastAddresses
+                .Where(a => a.Address.AddressFamily == AddressFamily.InterNetwork)
+                .Select(a => a.Address.ToString())
+                .ToArray();
+            var v6 = props.UnicastAddresses
+                .Where(a => a.Address.AddressFamily == AddressFamily.InterNetworkV6)
+                .Select(a => a.Address.ToString())
+                .ToArray();
+
+            if (v4.Length == 0 && v6.Length == 0) continue;
+
+            Console.WriteLine($"- {ni.Name}");
+            if (v4.Length > 0) Console.WriteLine($"  IPv4: {string.Join(", ", v4)}");
+            if (v6.Length > 0) Console.WriteLine($"  IPv6: {string.Join(", ", v6)}");
+        }
     }
 
     public static void FlushDns()
