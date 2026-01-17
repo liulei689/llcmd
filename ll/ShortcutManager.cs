@@ -7,6 +7,20 @@ public static class ShortcutManager
 {
     private static readonly Dictionary<string, (string Description, string Path)> _shortcuts = new();
 
+    private static readonly Dictionary<int, string> _shortcutIdToAlias = new();
+
+    public static void RegisterShortcut(int id, string alias, string desc, string path)
+    {
+        RegisterShortcut(alias, desc, path);
+        _shortcutIdToAlias[id] = alias.ToLowerInvariant();
+
+        // single-number launch: typing the number will launch directly
+        CommandManager.RegisterCommand(id, $"app:{alias.ToLowerInvariant()}", $"启动程序: {desc}", _ =>
+        {
+            LaunchProgram(desc, path, Array.Empty<string>());
+        });
+    }
+
     public static void RegisterShortcut(string alias, string desc, string path)
     {
         _shortcuts[alias.ToLower()] = (desc, path);
@@ -17,7 +31,7 @@ public static class ShortcutManager
         if (args.Length == 0)
         {
             UI.PrintError("请指定要打开的程序名称");
-            UI.PrintInfo("示例: o vs, o code, o notepad");
+            UI.PrintInfo("示例: vs   或   12 vs");
             return;
         }
 
@@ -31,7 +45,7 @@ public static class ShortcutManager
         else
         {
             UI.PrintError($"未找到程序配置: '{key}'");
-            UI.PrintInfo("输入 'list' 查看支持的程序列表");
+            UI.PrintInfo("输入 'ls' 查看支持的程序列表");
         }
     }
 
@@ -73,10 +87,21 @@ public static class ShortcutManager
 
     public static void ShowShortcuts()
     {
-        UI.PrintHeader("程序清单 (输入 'o' 启动)");
-        foreach (var sc in _shortcuts)
+        UI.PrintHeader("程序清单 (直接输入别名，或输入对应数字)");
+
+        // show those with numbers first
+        foreach (var kv in _shortcutIdToAlias.OrderBy(k => k.Key))
         {
-            UI.PrintItem(sc.Key, $"{sc.Value.Description}");
+            var id = kv.Key;
+            var alias = kv.Value;
+            if (_shortcuts.TryGetValue(alias, out var v))
+                UI.PrintItem($"{id,3}  {alias}", v.Description);
+        }
+
+        // show unnumbered shortcuts
+        foreach (var sc in _shortcuts.Where(sc => !_shortcutIdToAlias.ContainsValue(sc.Key)).OrderBy(sc => sc.Key))
+        {
+            UI.PrintItem($"     {sc.Key}", $"{sc.Value.Description}");
         }
     }
 }
