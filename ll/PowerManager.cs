@@ -183,8 +183,8 @@ public static class PowerManager
                         catch { }
                     }
 
-                    // Auto toggle Guardian mode when entering/leaving idle mode.
-                    if (isIdleMode && !guardianAutoActive)
+                    // Auto toggle Guardian mode only if Guardian is not manually enabled.
+                    if (isIdleMode && !guardianAutoActive && !GuardianManager.IsActive)
                     {
                         guardianAutoActive = true;
                         GuardianManager.ToggleGuardianMode(Array.Empty<string>());
@@ -192,7 +192,9 @@ public static class PowerManager
                     else if (!isIdleMode && guardianAutoActive)
                     {
                         guardianAutoActive = false;
-                        GuardianManager.ToggleGuardianMode(Array.Empty<string>());
+                        // Only auto-exit what we auto-entered.
+                        if (GuardianManager.IsActive)
+                            GuardianManager.ToggleGuardianMode(Array.Empty<string>());
                     }
                     
                     if (idleSeconds >= idleThresholdSeconds)

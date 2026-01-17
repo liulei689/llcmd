@@ -32,6 +32,17 @@ public static class GuardianManager
         }
     }
 
+    public static bool IsActive
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _isActive;
+            }
+        }
+    }
+
     private static void StartGuardianMode()
     {
         _isActive = true;
