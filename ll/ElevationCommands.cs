@@ -93,6 +93,9 @@ public static class ElevationCommands
 
     public static bool IsAdministrator()
     {
+        if (!OperatingSystem.IsWindows())
+            return false;
+
         try
         {
             using var identity = WindowsIdentity.GetCurrent();

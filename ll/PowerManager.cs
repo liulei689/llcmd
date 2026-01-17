@@ -24,7 +24,7 @@ public static class PowerManager
             return;
         }
 
-        if (args.Length > 0 && (args[0] == "?" || args[0].ToLower() == "help"))
+        if (args.Length > 0 && (args[0] == "?" || args[0].Equals("help", StringComparison.CurrentCultureIgnoreCase)))
         {
             PrintShutdownHelp();
             return;
@@ -72,7 +72,9 @@ public static class PowerManager
 
         _shutdownTask = Task.Run(async () =>
         {
-            string originalTitle = Console.Title;
+            string originalTitle = string.Empty;
+            if (OperatingSystem.IsWindows())
+                originalTitle = Console.Title;
             try
             {
                 while (DateTime.Now < TargetTime)
@@ -81,21 +83,25 @@ public static class PowerManager
                     var remaining = TargetTime.Value - DateTime.Now;
                     if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
 
-                    Console.Title = $"LL - 剩余时间 {remaining:hh\\:mm\\:ss}";
+                    if (OperatingSystem.IsWindows())
+                        Console.Title = $"LL - 剩余时间 {remaining:hh\\:mm\\:ss}";
                     await Task.Delay(1000, token);
                 }
 
-                Console.Title = originalTitle;
+                if (OperatingSystem.IsWindows())
+                    Console.Title = originalTitle;
                 Utils.SendEmailTo($"系统于 {DateTime.Now} 自动启动关机程序");
                 ExecuteShutdown();
             }
             catch (OperationCanceledException)
             {
-                Console.Title = originalTitle;
+                if (OperatingSystem.IsWindows())
+                    Console.Title = originalTitle;
             }
             catch (Exception ex)
             {
-                Console.Title = originalTitle;
+                if (OperatingSystem.IsWindows())
+                    Console.Title = originalTitle;
                 LogException(ex);
             }
         });
@@ -149,7 +155,9 @@ public static class PowerManager
 
         _shutdownTask = Task.Run(async () =>
         {
-            string originalTitle = Console.Title;
+            string originalTitle = string.Empty;
+            if (OperatingSystem.IsWindows())
+                originalTitle = Console.Title;
             try
             {
                 bool isIdleMode = false;
@@ -189,19 +197,20 @@ public static class PowerManager
                     if (isIdleMode && !guardianAutoActive && !GuardianManager.IsActive)
                     {
                         guardianAutoActive = true;
-                        GuardianManager.ToggleGuardianMode(Array.Empty<string>());
+                        GuardianManager.ToggleGuardianMode([]);
                     }
                     else if (!isIdleMode && guardianAutoActive)
                     {
                         guardianAutoActive = false;
                         // Only auto-exit what we auto-entered.
                         if (GuardianManager.IsActive)
-                            GuardianManager.ToggleGuardianMode(Array.Empty<string>());
+                            GuardianManager.ToggleGuardianMode([]);
                     }
                     
                     if (idleSeconds >= idleThresholdSeconds)
                     {
-                        Console.Title = originalTitle;
+                        if (OperatingSystem.IsWindows())
+                            Console.Title = originalTitle;
                         UI.PrintInfo($"检测到长时间无人使用 ({TimeSpan.FromSeconds(idleSeconds):hh\\:mm\\:ss})，执行自动关机。");
                         Utils.SendEmailTo($"系统于 {DateTime.Now} 因长时间无操作 ({idleSeconds}秒) 自动关机。");
                         ExecuteShutdown();
@@ -210,14 +219,16 @@ public static class PowerManager
 
                     // Always show full idle time (minutes keep increasing; not stuck at 59s)
                     // Keep UI quiet: only reflect state in title.
-                    Console.Title = $"LL - 空闲: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
+                    if (OperatingSystem.IsWindows())
+                        Console.Title = $"LL - 空闲: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
                     await Task.Delay(2000, token);
                 }
             }
             catch (OperationCanceledException) { }
             finally
             {
-                Console.Title = originalTitle;
+                if (OperatingSystem.IsWindows())
+                    Console.Title = originalTitle;
             }
         });
     }
