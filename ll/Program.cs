@@ -13,6 +13,13 @@ Console.Title = "LL 命令行工具";
 // 初始化并注册
 Initialize();
 
+// 内部模式：仅用于按需提权执行单条命令
+if (args.Length > 1 && args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
+{
+    CommandManager.ExecuteCommand(args[1], args.Skip(2).ToArray());
+    return;
+}
+
 // 入口点
 if (args.Length == 0)
 {
@@ -51,6 +58,8 @@ void Initialize()
     CommandManager.RegisterCommand(15, "size", "目录大小", args => SystemCommands.CheckDirectorySize(args));
     CommandManager.RegisterCommand(16, "clr",  "清屏", _ => Console.Clear());
     CommandManager.RegisterCommand(17, "qr",   "生成二维码", args => QrCommands.Print(args));
+    CommandManager.RegisterCommand(18, "admin", "申请管理员权限", args => ElevationCommands.Elevate(args));
+    CommandManager.RegisterCommand(19, "settime", "修改系统时间", args => SystemCommands.SetTime(args));
     CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
 
     // 实用工具（扁平化：直接用命令名，不用 util 前缀）
