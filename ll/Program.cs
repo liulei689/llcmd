@@ -75,6 +75,7 @@ void Initialize()
     CommandManager.RegisterCommand(28, "path", "PATH", args => UtilityCommands.Execute(["path", ..args]));
     CommandManager.RegisterCommand(29, "env", "环境变量", args => UtilityCommands.Execute(["env", ..args]));
     CommandManager.RegisterCommand(30, "clean", "清理", args => UtilityCommands.Execute(["clean", ..args]));
+    CommandManager.RegisterCommand(31, "hist", "历史记录", args => HistoryCommands.Show(args));
 
     // 常用快捷操作（面向普通用户）
     CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
@@ -130,6 +131,8 @@ void EnterInteractiveMode()
 {
     UI.PrintSuccess("交互模式已就绪");
     // 提示信息移除：保持界面干净
+
+    HistoryManager.EnsureSessionLoaded();
     
     while (true)
     {
@@ -146,11 +149,10 @@ void EnterInteractiveMode()
         string? input;
         try
         {
-            input = Console.ReadLine();
+            input = Console.IsInputRedirected ? Console.ReadLine() : ReadLineWithHistory();
         }
         catch (IOException)
         {
-            // Console input stream closed (e.g. piped host detached). Exit cleanly.
             return;
         }
         catch (ObjectDisposedException)
@@ -160,7 +162,75 @@ void EnterInteractiveMode()
 
         if (string.IsNullOrWhiteSpace(input)) continue;
 
+        HistoryManager.Add(input);
+
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         CommandManager.ExecuteCommand(parts[0], parts.Skip(1).ToArray());
+    }
+}
+
+string? ReadLineWithHistory()
+{
+    var buffer = new StringBuilder();
+    int startLeft = Console.CursorLeft;
+    int startTop = Console.CursorTop;
+
+    void Redraw()
+    {
+        Console.SetCursorPosition(startLeft, startTop);
+        Console.Write(new string(' ', Console.BufferWidth - startLeft - 1));
+        Console.SetCursorPosition(startLeft, startTop);
+        Console.Write(buffer.ToString());
+    }
+
+    while (true)
+    {
+        var key = Console.ReadKey(intercept: true);
+
+        if (key.Key == ConsoleKey.Enter)
+        {
+            Console.WriteLine();
+            return buffer.ToString();
+        }
+
+        if (key.Key == ConsoleKey.Backspace)
+        {
+            if (buffer.Length > 0)
+            {
+                buffer.Length--;
+                Redraw();
+            }
+            continue;
+        }
+
+        if (key.Key == ConsoleKey.UpArrow)
+        {
+            var prev = HistoryManager.Prev();
+            if (prev is not null)
+            {
+                buffer.Clear();
+                buffer.Append(prev);
+                Redraw();
+            }
+            continue;
+        }
+
+        if (key.Key == ConsoleKey.DownArrow)
+        {
+            var next = HistoryManager.Next();
+            if (next is not null)
+            {
+                buffer.Clear();
+                buffer.Append(next);
+                Redraw();
+            }
+            continue;
+        }
+
+        if (!char.IsControl(key.KeyChar))
+        {
+            buffer.Append(key.KeyChar);
+            Console.Write(key.KeyChar);
+        }
     }
 }
