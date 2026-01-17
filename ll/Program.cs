@@ -50,6 +50,7 @@ void Initialize()
     CommandManager.RegisterCommand(14, "time", "系统时间", args => SystemCommands.ShowTime(args));
     CommandManager.RegisterCommand(15, "size", "目录大小", args => SystemCommands.CheckDirectorySize(args));
     CommandManager.RegisterCommand(16, "clr",  "清屏", _ => Console.Clear());
+    CommandManager.RegisterCommand(17, "qr",   "生成二维码", args => QrCommands.Print(args));
     CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
 
     // 实用工具（扁平化：直接用命令名，不用 util 前缀）
