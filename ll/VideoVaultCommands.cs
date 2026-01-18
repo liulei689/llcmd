@@ -823,6 +823,42 @@ public static class VideoVaultCommands
         return list;
     }
 
+    private static List<string> ExpandLlvInputs(string input, bool recursive)
+    {
+        var list = new List<string>();
+
+        // directory
+        if (Directory.Exists(input))
+        {
+            var opt = new EnumerationOptions { RecurseSubdirectories = recursive, IgnoreInaccessible = true };
+            foreach (var f in Directory.EnumerateFiles(input, "*.*", opt))
+            {
+                if (IsLlvFile(f)) list.Add(f);
+            }
+            return list;
+        }
+
+        // wildcard
+        if (input.Contains('*') || input.Contains('?'))
+        {
+            var dir = Path.GetDirectoryName(input);
+            if (string.IsNullOrEmpty(dir)) dir = Directory.GetCurrentDirectory();
+            var pattern = Path.GetFileName(input);
+            var opt = new EnumerationOptions { RecurseSubdirectories = recursive, IgnoreInaccessible = true };
+            foreach (var f in Directory.EnumerateFiles(dir!, pattern, opt))
+            {
+                if (IsLlvFile(f)) list.Add(f);
+            }
+            return list;
+        }
+
+        // file
+        if (File.Exists(input) && IsLlvFile(input))
+            list.Add(input);
+
+        return list;
+    }
+
     private static bool IsVideoFile(string path)
     {
         var ext = Path.GetExtension(path);
@@ -831,6 +867,12 @@ public static class VideoVaultCommands
                ext.Equals(".mov", StringComparison.OrdinalIgnoreCase) ||
                ext.Equals(".avi", StringComparison.OrdinalIgnoreCase) ||
                ext.Equals(".webm", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsLlvFile(string path)
+    {
+        var ext = Path.GetExtension(path);
+        return ext.Equals(".llv", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string ResolveOutputPath(string inputFile, string? outArg)
@@ -1118,5 +1160,125 @@ Your browser does not support the video tag.
         long start = long.Parse(ranges[0]);
         long end = string.IsNullOrEmpty(ranges[1]) ? totalSize - 1 : long.Parse(ranges[1]);
         return (start, Math.Min(end, totalSize - 1));
+    }
+
+    public static void Decrypt(string[] args)
+    {
+        if (args.Length == 0 || args[0] is "help" or "-h" or "--help")
+        {
+            PrintDecryptHelp();
+            return;
+        }
+
+        string input = args[0];
+        string? outPath = null;
+        string? password = null;
+        bool recursive = false;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            var a = args[i];
+            if (a.StartsWith("--out=", StringComparison.OrdinalIgnoreCase)) outPath = a["--out=".Length..].Trim('"');
+            else if (a.StartsWith("--pwd=", StringComparison.OrdinalIgnoreCase)) password = a["--pwd=".Length..];
+            else if (a is "-r" or "--recursive") recursive = true;
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            password = ReadPassword("请输入密码: ");
+        }
+
+        var inputs = ExpandLlvInputs(input, recursive);
+        if (inputs.Count == 0)
+        {
+            UI.PrintError($"未找到 .llv 文件: {input}");
+            return;
+        }
+
+        UI.PrintHeader("解密视频文件");
+        UI.PrintResult("文件数", inputs.Count().ToString("n0"));
+        long totalBytes = 0;
+        foreach (var f in inputs)
+        {
+            try { totalBytes += new FileInfo(f).Length; } catch { }
+        }
+        UI.PrintResult("总大小", Utils.FormatSize(totalBytes));
+        UI.PrintResult("输出", string.IsNullOrWhiteSpace(outPath) ? "同目录" : outPath);
+        UI.PrintInfo("开始解密...");
+        Console.WriteLine();
+
+        var swAll = Stopwatch.StartNew();
+        int ok = 0;
+        int fail = 0;
+        long doneBytes = 0;
+
+        foreach (var file in inputs)
+        {
+            try
+            {
+                var dst = ResolveDecryptOutputPath(file, outPath);
+                var fi = new FileInfo(file);
+                DecryptToFile(file, dst, password);
+                ok++;
+                doneBytes += fi.Length;
+
+                var elapsed = swAll.Elapsed;
+                var speed = elapsed.TotalSeconds > 0.1 ? doneBytes / elapsed.TotalSeconds : 0;
+                var remainBytes = Math.Max(0, totalBytes - doneBytes);
+                var eta = speed > 1 ? TimeSpan.FromSeconds(remainBytes / speed) : TimeSpan.Zero;
+                UI.PrintResult("进度", $"{ok + fail}/{inputs.Count()}  已完成 {Utils.FormatSize(doneBytes)} / {Utils.FormatSize(totalBytes)}  预计剩余 {eta:hh\\:mm\\:ss}");
+                UI.PrintSuccess($"已解密: {file} -> {dst}");
+            }
+            catch (Exception ex)
+            {
+                fail++;
+                UI.PrintError($"解密失败: {file} ({ex.Message})");
+            }
+        }
+
+        swAll.Stop();
+        Console.WriteLine();
+        UI.PrintSuccess($"完成: 成功 {ok:n0}, 失败 {fail:n0}, 用时 {swAll.Elapsed:hh\\:mm\\:ss}");
+    }
+
+    private static string ResolveDecryptOutputPath(string inputFile, string? outArg)
+    {
+        var inputFull = Path.GetFullPath(inputFile);
+
+        // If --out is a directory, preserve filename.
+        if (!string.IsNullOrWhiteSpace(outArg))
+        {
+            var outPath = outArg.Trim('"');
+
+            if (outPath.EndsWith(Path.DirectorySeparatorChar) || outPath.EndsWith(Path.AltDirectorySeparatorChar) || Directory.Exists(outPath))
+            {
+                var dir = outPath;
+                Directory.CreateDirectory(dir);
+                return Path.Combine(dir, Path.GetFileNameWithoutExtension(inputFull) + ".mp4");
+            }
+
+            // If --out is a file path, use it (single input recommended).
+            if (outPath.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase))
+                return Path.GetFullPath(outPath);
+
+            // otherwise treat as directory
+            Directory.CreateDirectory(outPath);
+            return Path.Combine(outPath, Path.GetFileNameWithoutExtension(inputFull) + ".mp4");
+        }
+
+        // default: alongside original
+        var dirDefault = Path.GetDirectoryName(inputFull)!;
+        return Path.Combine(dirDefault, Path.GetFileNameWithoutExtension(inputFull) + ".mp4");
+    }
+
+    private static void PrintDecryptHelp()
+    {
+        UI.PrintHeader("decv - 解密视频文件");
+        UI.PrintInfo("用法: decv <file.llv|dir|glob> [--out=输出路径] [--pwd=密码] [-r]");
+        Console.WriteLine();
+        UI.PrintResult("decv a.llv", "解密到同目录 a.mp4");
+        UI.PrintResult("decv D:/vault --out=E:/videos -r", "递归批量解密到 E:/videos");
+        UI.PrintResult("decv \"D:/vault/*.llv\" --out=E:/videos", "按通配符批量解密");
+        UI.PrintInfo("提示: 不写 --pwd 会交互输入密码。");
     }
 }
