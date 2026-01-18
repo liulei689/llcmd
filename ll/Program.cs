@@ -139,23 +139,15 @@ void EnterInteractiveMode()
     // 提示信息移除：保持界面干净
 
     HistoryManager.EnsureSessionLoaded();
-    
+
     while (true)
     {
-        Console.ForegroundColor = ConsoleColor.Green;
-        Console.Write($"{Environment.UserName}");
-        Console.ForegroundColor = ConsoleColor.Gray;
-        Console.Write("@");
-        Console.ForegroundColor = ConsoleColor.Magenta;
-        Console.Write($"{Environment.MachineName}");
-        Console.ForegroundColor = ConsoleColor.Yellow;
-        Console.Write(" $ ");
-        Console.ResetColor();
-
+        // Use ANSI escape sequences for colored prompt. ReadLine will render it if VT is enabled.
+        var prompt = $"\u001b[32m{Environment.UserName}\u001b[37m@\u001b[35m{Environment.MachineName}\u001b[33m $\u001b[0m";
         string? input;
         try
         {
-            input = Console.IsInputRedirected ? Console.ReadLine() : ReadLineWithHistory();
+            input = Console.IsInputRedirected ? Console.ReadLine() : ReadLineWithEditing(prompt);
         }
         catch (IOException)
         {
@@ -175,68 +167,104 @@ void EnterInteractiveMode()
     }
 }
 
-string? ReadLineWithHistory()
+static string? ReadLineWithEditing(string prompt)
 {
-    var buffer = new StringBuilder();
-    int startLeft = Console.CursorLeft;
-    int startTop = Console.CursorTop;
-
-    void Redraw()
-    {
-        Console.SetCursorPosition(startLeft, startTop);
-        Console.Write(new string(' ', Console.BufferWidth - startLeft - 1));
-        Console.SetCursorPosition(startLeft, startTop);
-        Console.Write(buffer.ToString());
-    }
+    Console.Write(prompt);
+    // Calculate visible prompt length (excluding ANSI escape sequences)
+    int visiblePromptLen = Environment.UserName.Length + 1 + Environment.MachineName.Length + 2; // user@host $
+    var input = new StringBuilder();
+    int cursor = 0;
+    string? currentHistory = null;
+    bool historyMode = false;
 
     while (true)
     {
-        var key = Console.ReadKey(intercept: true);
-
-        if (key.Key == ConsoleKey.Enter)
+        var key = Console.ReadKey(true);
+        switch (key.Key)
         {
-            Console.WriteLine();
-            return buffer.ToString();
+            case ConsoleKey.Enter:
+                Console.WriteLine();
+                return input.ToString();
+
+            case ConsoleKey.LeftArrow:
+                if (cursor > 0) cursor--;
+                break;
+
+            case ConsoleKey.RightArrow:
+                if (cursor < input.Length) cursor++;
+                break;
+
+            case ConsoleKey.Backspace:
+                if (cursor > 0)
+                {
+                    input.Remove(cursor - 1, 1);
+                    cursor--;
+                }
+                break;
+
+            case ConsoleKey.Delete:
+                if (cursor < input.Length)
+                {
+                    input.Remove(cursor, 1);
+                }
+                break;
+
+            case ConsoleKey.UpArrow:
+                currentHistory = HistoryManager.Prev();
+                if (currentHistory != null)
+                {
+                    input.Clear();
+                    input.Append(currentHistory);
+                    cursor = input.Length;
+                    historyMode = true;
+                }
+                break;
+
+            case ConsoleKey.DownArrow:
+                currentHistory = HistoryManager.Next();
+                if (currentHistory != null)
+                {
+                    input.Clear();
+                    input.Append(currentHistory);
+                    cursor = input.Length;
+                    historyMode = true;
+                }
+                else if (historyMode)
+                {
+                    input.Clear();
+                    cursor = 0;
+                    historyMode = false;
+                }
+                break;
+
+            default:
+                if (!char.IsControl(key.KeyChar))
+                {
+                    input.Insert(cursor, key.KeyChar);
+                    cursor++;
+                    historyMode = false; // reset history on edit
+                }
+                break;
         }
 
-        if (key.Key == ConsoleKey.Backspace)
-        {
-            if (buffer.Length > 0)
-            {
-                buffer.Length--;
-                Redraw();
-            }
-            continue;
-        }
-
-        if (key.Key == ConsoleKey.UpArrow)
-        {
-            var prev = HistoryManager.Prev();
-            if (prev is not null)
-            {
-                buffer.Clear();
-                buffer.Append(prev);
-                Redraw();
-            }
-            continue;
-        }
-
-        if (key.Key == ConsoleKey.DownArrow)
-        {
-            var next = HistoryManager.Next();
-            if (next is not null)
-            {
-                buffer.Clear();
-                buffer.Append(next);
-                Redraw();
-            }
-            continue;
-        }
-
-        if (!char.IsControl(key.KeyChar))
-        {
-            buffer.Append(key.KeyChar);
-            Console.Write(key.KeyChar);
-        }
+        // Redraw the line
+        Console.SetCursorPosition(visiblePromptLen, Console.CursorTop);
+        Console.Write(new string(' ', Math.Max(0, Console.WindowWidth - visiblePromptLen)));
+        Console.SetCursorPosition(visiblePromptLen, Console.CursorTop);
+        Console.Write(input.ToString());
+        // Calculate display width up to cursor for accurate cursor positioning with wide characters
+        int displayWidthToCursor = GetDisplayWidth(input.ToString().AsSpan(0, cursor));
+        Console.SetCursorPosition(visiblePromptLen + displayWidthToCursor, Console.CursorTop);
     }
+}
+
+static int GetDisplayWidth(ReadOnlySpan<char> s)
+{
+    int width = 0;
+    foreach (char c in s)
+    {
+        // Approximate: ASCII characters are 1 width, others (e.g., Chinese) are 2
+        width += c <= 127 ? 1 : 2;
+    }
+    return width;
 }
