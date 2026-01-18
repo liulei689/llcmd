@@ -7,9 +7,8 @@ using LL;
 
 // 环境配置
 Console.OutputEncoding = Encoding.UTF8;
-Console.InputEncoding = Encoding.UTF8;
+Console.InputEncoding = Encoding.Unicode;
 Console.Title = "LL 命令行工具";
-
 // 初始化并注册
 Initialize();
 
@@ -78,6 +77,11 @@ void Initialize()
     CommandManager.RegisterCommand(31, "hist", "历史记录", args => HistoryCommands.Show(args));
 
     CommandManager.RegisterCommand(32, "loc", "统计目录代码行数", args => CodeStatsCommands.Run(args));
+
+    CommandManager.RegisterCommand(60, "encv", "加密视频文件(生成 .llv)", args => VideoVaultCommands.Encrypt(args));
+    CommandManager.RegisterCommand(61, "playv", "播放加密视频(.llv)", args => VideoVaultCommands.Play(args));
+    CommandManager.RegisterCommand(62, "lsv", "列出加密视频(.llv)", args => VideoVaultCommands.List(args));
+    CommandManager.RegisterCommand(63, "clrv", "清理视频临时解密文件", args => VideoVaultCommands.CleanTemp(args));
 
     // 常用快捷操作（面向普通用户）
     CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
