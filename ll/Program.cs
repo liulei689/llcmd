@@ -77,6 +77,8 @@ void Initialize()
     CommandManager.RegisterCommand(30, "clean", "清理", args => UtilityCommands.Execute(["clean", ..args]));
     CommandManager.RegisterCommand(31, "hist", "历史记录", args => HistoryCommands.Show(args));
 
+    CommandManager.RegisterCommand(32, "loc", "统计目录代码行数", args => CodeStatsCommands.Run(args));
+
     // 常用快捷操作（面向普通用户）
     CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
     CommandManager.RegisterCommand(41, "dev", "设备管理器", _ => QuickCommands.OpenDeviceManager());
