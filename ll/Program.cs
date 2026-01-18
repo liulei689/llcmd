@@ -83,6 +83,8 @@ void Initialize()
     CommandManager.RegisterCommand(62, "lsv", "列出加密视频(.llv)", args => VideoVaultCommands.List(args));
     CommandManager.RegisterCommand(63, "clrv", "清理视频临时解密文件", args => VideoVaultCommands.CleanTemp(args));
     CommandManager.RegisterCommand(64, "decv", "解密视频文件(.llv 到 .mp4)", args => VideoVaultCommands.Decrypt(args));
+    CommandManager.RegisterCommand(65, "encf", "加密文件(生成 .llf)", args => FileVaultCommands.EncryptFile(args));
+    CommandManager.RegisterCommand(66, "decf", "解密文件(.llf 到原格式)", args => FileVaultCommands.DecryptFile(args));
 
     // 常用快捷操作（面向普通用户）
     CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
@@ -163,21 +165,30 @@ void EnterInteractiveMode()
 
         HistoryManager.Add(input);
 
-        // Auto-play .llv files dragged into the console
+        // Auto-play .llv files or decrypt .llf files dragged into the console
         var trimmedInput = input.Trim('"');
-        if (File.Exists(trimmedInput) && Path.GetExtension(trimmedInput).Equals(".llv", StringComparison.OrdinalIgnoreCase))
+        if (File.Exists(trimmedInput))
         {
-            Console.Write("选择播放方式: 1. 本地播放器 (默认)  2. H5浏览器播放: ");
-            var choice = Console.ReadLine();
-            if (choice == "2")
+            var ext = Path.GetExtension(trimmedInput);
+            if (ext.Equals(".llv", StringComparison.OrdinalIgnoreCase))
             {
-                CommandManager.ExecuteCommand("playv", new[] { trimmedInput, "--html5" });
+                Console.Write("选择播放方式: 1. 本地播放器 (默认)  2. H5浏览器播放: ");
+                var choice = Console.ReadLine();
+                if (choice == "2")
+                {
+                    CommandManager.ExecuteCommand("playv", new[] { trimmedInput, "--html5" });
+                }
+                else
+                {
+                    CommandManager.ExecuteCommand("playv", new[] { trimmedInput });
+                }
+                continue;
             }
-            else
+            else if (ext.Equals(".llf", StringComparison.OrdinalIgnoreCase))
             {
-                CommandManager.ExecuteCommand("playv", new[] { trimmedInput });
+                CommandManager.ExecuteCommand("decf", new[] { trimmedInput });
+                continue;
             }
-            continue;
         }
 
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
