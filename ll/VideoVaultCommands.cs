@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
+using System.Net;
+using System.Net.Sockets;
 
 namespace LL;
 
@@ -155,18 +157,21 @@ public static class VideoVaultCommands
         if (file is null) return;
 
         string? password = null;
+        bool autoDelete = false;
+        bool useHtml5 = false;
         for (int i = 1; i < args.Length; i++)
         {
             var a = args[i];
             if (a.StartsWith("--pwd=", StringComparison.OrdinalIgnoreCase)) password = a["--pwd=".Length..];
+            else if (a is "--autodel") autoDelete = true;
+            else if (a is "--html5") useHtml5 = true;
         }
         if (string.IsNullOrWhiteSpace(password))
             password = ReadPassword("请输入密码: ");
 
-        bool autoDelete = args.Any(a => a is "--autodel");
         while (true)
         {
-            if (PlayOne(file, password, autoDelete))
+            if (PlayOne(file, password, autoDelete, useHtml5))
                 return;
             password = ReadPassword("密码错误，请重新输入(回车或输入q退出): ");
             if (string.IsNullOrWhiteSpace(password) || password.Trim().Equals("q", StringComparison.OrdinalIgnoreCase) || password.Trim().Equals("exit", StringComparison.OrdinalIgnoreCase))
@@ -243,15 +248,17 @@ public static class VideoVaultCommands
         }
 
         string? password = null;
+        bool autoDelete = false;
+        bool useHtml5 = false;
         for (int i = 0; i < args.Length; i++)
         {
             var a = args[i];
             if (a.StartsWith("--pwd=", StringComparison.OrdinalIgnoreCase)) password = a["--pwd=".Length..];
+            else if (a is "--autodel") autoDelete = true;
+            else if (a is "--html5") useHtml5 = true;
         }
         if (string.IsNullOrWhiteSpace(password))
             password = ReadPassword("请输入密码(本次会话仅输入一次): ");
-
-        bool autoDelete = args.Any(a => a is "--autodel");
 
         bool printedList = false;
         while (true)
@@ -294,20 +301,20 @@ public static class VideoVaultCommands
 
             var file = files[idx - 1];
             // Try current session password first.
-            if (PlayOne(file, password, autoDelete))
+            if (PlayOne(file, password, autoDelete, useHtml5))
                 continue;
 
             // This file may use a different password; prompt retry without re-printing list.
             while (true)
             {
                 password = ReadPassword($"密码错误(文件: {Path.GetFileName(file)}), 请重新输入: ");
-                if (PlayOne(file, password, autoDelete))
+                if (PlayOne(file, password, autoDelete, useHtml5))
                     break;
             }
         }
     }
 
-    private static bool PlayOne(string file, string password, bool autoDelete)
+    private static bool PlayOne(string file, string password, bool autoDelete, bool useHtml5 = false)
     {
         try
         {
@@ -318,11 +325,29 @@ public static class VideoVaultCommands
             DecryptToFile(file, tempFile, password);
             UI.PrintSuccess($"已解密到临时文件: {tempFile}");
 
-            Process.Start(new ProcessStartInfo
+            if (useHtml5)
             {
-                FileName = tempFile,
-                UseShellExecute = true
-            });
+                // Start local HTTP server for HTML5 video player
+                int port = GetFreePort();
+                _ = Task.Run(() => RunVideoServer(tempFile, port)); // Run in background
+                Thread.Sleep(500); // Allow server to start
+
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = $"http://localhost:{port}/",
+                    UseShellExecute = true
+                });
+
+                // Do not wait; let server run in background
+            }
+            else
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = tempFile,
+                    UseShellExecute = true
+                });
+            }
 
             if (autoDelete)
             {
@@ -879,12 +904,13 @@ public static class VideoVaultCommands
     private static void PrintPlayHelp()
     {
         UI.PrintHeader("playv - 播放加密视频");
-        UI.PrintInfo("用法: playv <file.llv|dir> [--pwd=密码] [--autodel]");
+        UI.PrintInfo("用法: playv <file.llv|dir> [--pwd=密码] [--autodel] [--html5]");
         Console.WriteLine();
         UI.PrintResult("playv a.llv", "输入密码后播放");
         UI.PrintResult("playv E:/vault", "从目录中选择要播放的 .llv");
         UI.PrintResult("playv E:/vault --autodel", "播放后自动尝试删除临时文件(播放器若仍占用会延迟)");
-        UI.PrintInfo("当前为兼容模式: 先解密到临时目录，再用系统默认播放器打开。清理请用 clrv。");
+        UI.PrintResult("playv a.llv --html5", "使用浏览器 HTML5 播放器播放，支持拖拽进度");
+        UI.PrintInfo("默认使用系统播放器；--html5 选项使用本地 HTTP 服务提供 HTML5 播放器。清理请用 clrv。");
     }
 
     private static void PrintListHelp()
@@ -957,5 +983,140 @@ public static class VideoVaultCommands
         nonce[^3] ^= (byte)(chunkIndex >> 8);
         nonce[^2] ^= (byte)(chunkIndex >> 16);
         nonce[^1] ^= (byte)(chunkIndex >> 24);
+    }
+
+    private static int GetFreePort()
+    {
+        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+        socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        return ((IPEndPoint)socket.LocalEndPoint).Port;
+    }
+
+    private static void RunVideoServer(string tempFile, int port)
+    {
+        using var listener = new HttpListener();
+        listener.Prefixes.Add($"http://localhost:{port}/");
+        listener.Start();
+
+        // Run server for a reasonable time (e.g., 1 hour) or until error
+        var cts = new CancellationTokenSource(TimeSpan.FromHours(1));
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                var context = listener.GetContext();
+                if (context.Request.Url.AbsolutePath == "/")
+                {
+                    ServeHtml(context.Response);
+                }
+                else if (context.Request.Url.AbsolutePath == "/video")
+                {
+                    ServeVideo(context, tempFile);
+                }
+                else
+                {
+                    context.Response.StatusCode = 404;
+                    context.Response.Close();
+                }
+            }
+        }
+        catch (HttpListenerException)
+        {
+            // Server stopped
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    private static void ServeHtml(HttpListenerResponse response)
+    {
+        string html = @"<!DOCTYPE html>
+<html>
+<head>
+<title>LL Video Player</title>
+<style>
+body { margin: 0; padding: 0; background: black; overflow: hidden; }
+video { width: 100vw; height: 100vh; object-fit: contain; }
+</style>
+</head>
+<body>
+<video controls autoplay muted>
+<source src='/video' type='video/mp4'>
+Your browser does not support the video tag.
+</video>
+</body>
+</html>";
+        byte[] buffer = Encoding.UTF8.GetBytes(html);
+        response.ContentType = "text/html";
+        response.ContentLength64 = buffer.Length;
+        response.OutputStream.Write(buffer, 0, buffer.Length);
+        response.OutputStream.Close();
+    }
+
+    private static void ServeVideo(HttpListenerContext context, string tempFile)
+    {
+        var response = context.Response;
+        var request = context.Request;
+        response.ContentType = "video/mp4";
+        response.Headers.Add("Accept-Ranges", "bytes");
+
+        var fi = new FileInfo(tempFile);
+        long totalSize = fi.Length;
+
+        using var fs = new FileStream(tempFile, FileMode.Open, FileAccess.Read, FileShare.Read);
+
+        long start = 0;
+        long end = totalSize - 1;
+        bool isPartial = false;
+
+        if (request.Headers["Range"] != null)
+        {
+            var range = ParseRange(request.Headers["Range"], totalSize);
+            start = range.Start;
+            end = range.End;
+            isPartial = true;
+            response.StatusCode = 206;
+            response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalSize}");
+        }
+
+        long contentLength = end - start + 1;
+        response.ContentLength64 = contentLength;
+
+        fs.Position = start;
+
+        byte[] buffer = new byte[8192];
+        long bytesToSend = contentLength;
+        try
+        {
+            while (bytesToSend > 0)
+            {
+                int toRead = (int)Math.Min(buffer.Length, bytesToSend);
+                int read = fs.Read(buffer, 0, toRead);
+                if (read == 0) break;
+                response.OutputStream.Write(buffer, 0, read);
+                bytesToSend -= read;
+            }
+        }
+        catch (HttpListenerException)
+        {
+            // Client disconnected, ignore
+        }
+        finally
+        {
+            response.OutputStream.Close();
+        }
+    }
+
+    private static (long Start, long End) ParseRange(string rangeHeader, long totalSize)
+    {
+        var parts = rangeHeader.Split('=');
+        if (parts.Length != 2 || parts[0] != "bytes") return (0, totalSize - 1);
+        var ranges = parts[1].Split('-');
+        if (ranges.Length != 2) return (0, totalSize - 1);
+        long start = long.Parse(ranges[0]);
+        long end = string.IsNullOrEmpty(ranges[1]) ? totalSize - 1 : long.Parse(ranges[1]);
+        return (start, Math.Min(end, totalSize - 1));
     }
 }
