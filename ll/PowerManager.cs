@@ -68,7 +68,9 @@ public static class PowerManager
         UI.PrintInfo("命令行可继续使用。输入 'c' 可取消。");
 
         _shutdownCts = new CancellationTokenSource();
-        var token = _shutdownCts.Token;
+        var localCts = _shutdownCts;
+        TaskManager.Register("倒计时关机", localCts);
+        var token = localCts.Token;
 
         _shutdownTask = Task.Run(async () =>
         {
@@ -103,6 +105,10 @@ public static class PowerManager
                 if (OperatingSystem.IsWindows())
                     Console.Title = originalTitle;
                 LogException(ex);
+            }
+            finally
+            {
+                TaskManager.Clear(localCts);
             }
         });
     }
@@ -151,7 +157,9 @@ public static class PowerManager
         UI.PrintInfo("命令行可继续使用。输入 'c' 可取消监听。");
 
         _shutdownCts = new CancellationTokenSource();
-        var token = _shutdownCts.Token;
+        var localCts = _shutdownCts;
+        TaskManager.Register("空闲关机监听", localCts);
+        var token = localCts.Token;
 
         _shutdownTask = Task.Run(async () =>
         {
@@ -229,12 +237,20 @@ public static class PowerManager
             {
                 if (OperatingSystem.IsWindows())
                     Console.Title = originalTitle;
+
+                TaskManager.Clear(localCts);
             }
         });
     }
 
     public static void ShowStatus()
     {
+        var (name, startedAt) = TaskManager.GetLatest();
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            UI.PrintResult("可取消任务", startedAt.HasValue ? $"{name} (开始于 {startedAt:HH:mm:ss})" : name);
+        }
+
         if (_shutdownTask == null || _shutdownTask.IsCompleted)
         {
             UI.PrintInfo("当前没有正在运行的电源管理任务。");
@@ -263,11 +279,10 @@ public static class PowerManager
         {
             _shutdownCts.Cancel();
             UI.PrintSuccess($"已取消运行中的任务 ({CurrentMode})。");
+            return;
         }
-        else
-        {
-            UI.PrintInfo("当前没有正在运行的任务。");
-        }
+
+        UI.PrintInfo("当前没有正在运行的电源管理任务。");
     }
 
     public static void AbortSystemShutdown()

@@ -133,6 +133,7 @@ public static class CodeStatsCommands
         Console.WriteLine();
 
         using var cts = new CancellationTokenSource();
+        TaskManager.Register("loc 目录统计", cts);
         ConsoleCancelEventHandler handler = (s, e) =>
         {
             e.Cancel = true;
@@ -147,6 +148,7 @@ public static class CodeStatsCommands
         finally
         {
             Console.CancelKeyPress -= handler;
+            TaskManager.Clear(cts);
         }
     }
 
@@ -177,27 +179,30 @@ public static class CodeStatsCommands
             {
                 fileQueue.CompleteAdding();
             }
-        }, token);
+        });
 
         var consumers = Enumerable.Range(0, opt.MaxDegree).Select(_ => Task.Run(() =>
         {
-            foreach (var file in fileQueue.GetConsumingEnumerable(token))
+            try
             {
-                try
+                foreach (var file in fileQueue.GetConsumingEnumerable(token))
                 {
-                    var s = AnalyzeFile(file);
-                    stats.Add(s);
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch
-                {
-                    // Keep scanning; ignore single-file failures (locked/encoding etc.)
+                    try
+                    {
+                        var s = AnalyzeFile(file);
+                        stats.Add(s);
+                    }
+                    catch
+                    {
+                        // Keep scanning; ignore single-file failures (locked/encoding etc.)
+                    }
                 }
             }
-        }, token)).ToArray();
+            catch (OperationCanceledException)
+            {
+                // normal cancellation
+            }
+        })).ToArray();
 
         bool completed = false;
         while (!completed && !token.IsCancellationRequested)
@@ -212,7 +217,9 @@ public static class CodeStatsCommands
             completed = Task.WhenAll(consumers.Append(producer)).IsCompleted;
         }
 
-        try { Task.WhenAll(consumers.Append(producer)).GetAwaiter().GetResult(); } catch { }
+        try { Task.WhenAll(consumers.Append(producer)).GetAwaiter().GetResult(); }
+        catch (OperationCanceledException) { }
+        catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { }
         WriteLive(stats, sw, startTop, completed: true, reservedLines);
         // Print completion message right after the live dashboard (no extra blank area).
         Console.SetCursorPosition(0, startTop + reservedLines - 1);

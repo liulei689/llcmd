@@ -44,7 +44,7 @@ void Initialize()
     CommandManager.RegisterCommand(3,  "sd",   "倒数关机", args => PowerManager.StartShutdownSequence(args));
     CommandManager.RegisterCommand(4,  "idle", "空闲关机", args => PowerManager.StartIdleMonitor(args));
     CommandManager.RegisterCommand(5,  "st",   "任务状态", _ => PowerManager.ShowStatus());
-    CommandManager.RegisterCommand(6,  "c",    "取消任务", _ => PowerManager.CancelTask());
+    CommandManager.RegisterCommand(6,  "c",    "取消任务", _ => TaskManager.CancelLatest());
     CommandManager.RegisterCommand(7,  "abort","中止关机", _ => PowerManager.AbortSystemShutdown());
 
     CommandManager.RegisterCommand(8,  "myip", "查看本机 IP", _ => QuickCommands.ShowMyIp());
