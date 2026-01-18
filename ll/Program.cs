@@ -23,6 +23,18 @@ class Program
     private const int WS_MINIMIZEBOX = 0x00020000;
     private const int WS_SYSMENU = 0x00080000;
 
+    [DllImport("kernel32.dll")]
+    private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetStdHandle(int nStdHandle);
+
+    private const int STD_OUTPUT_HANDLE = -11;
+    private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
+
     static void Main(string[] args)
     {
         // 环境配置
@@ -31,6 +43,9 @@ class Program
         Console.Title = "LL 命令行工具";
         // Hide maximize, minimize, and close buttons
         HideConsoleButtons();
+
+        // Check for VT support
+        bool supportsVT = EnableVirtualTerminalProcessing();
 
         // 初始化并注册
         Initialize();
@@ -48,7 +63,7 @@ class Program
             UI.PrintBanner();
             // 默认开启 2 小时闲时关机监听
             PowerManager.StartIdleMonitor(new[] { "2h" });
-            EnterInteractiveMode();
+            EnterInteractiveMode(supportsVT);
         }
         else
         {
@@ -160,7 +175,7 @@ class Program
         Console.WriteLine();
     }
 
-    static void EnterInteractiveMode()
+    static void EnterInteractiveMode(bool supportsVT)
     {
         UI.PrintSuccess("交互模式已就绪");
         // 提示信息移除：保持界面干净
@@ -169,8 +184,10 @@ class Program
 
         while (true)
         {
-            // Use ANSI escape sequences for colored prompt. ReadLine will render it if VT is enabled.
-            var prompt = $"\u001b[32m{Environment.UserName}\u001b[37m@\u001b[35m{Environment.MachineName}\u001b[33m $\u001b[0m";
+            // Use ANSI escape sequences if VT is supported, otherwise plain text
+            string prompt = supportsVT
+                ? $"\u001b[32m{Environment.UserName}\u001b[37m@\u001b[35m{Environment.MachineName}\u001b[33m $\u001b[0m"
+                : $"{Environment.UserName}@{Environment.MachineName} $ ";
             string? input;
             try
             {
@@ -224,7 +241,7 @@ class Program
     {
         Console.Write(prompt);
         // Calculate visible prompt length (excluding ANSI escape sequences)
-        int visiblePromptLen = Environment.UserName.Length + 1 + Environment.MachineName.Length + 2; // user@host $
+        int visiblePromptLen = prompt.Contains('\u001b') ? Environment.UserName.Length + 1 + Environment.MachineName.Length + 2 : prompt.Length; // user@host $
         var input = new StringBuilder();
         int cursor = 0;
         string? currentHistory = null;
@@ -332,5 +349,19 @@ class Program
             style &= ~(WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU);
             SetWindowLong(hWnd, GWL_STYLE, style);
         }
+    }
+
+    static bool EnableVirtualTerminalProcessing()
+    {
+        IntPtr hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (hOut != IntPtr.Zero && GetConsoleMode(hOut, out uint mode))
+        {
+            mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            if (SetConsoleMode(hOut, mode))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }
