@@ -163,6 +163,23 @@ void EnterInteractiveMode()
 
         HistoryManager.Add(input);
 
+        // Auto-play .llv files dragged into the console
+        var trimmedInput = input.Trim('"');
+        if (File.Exists(trimmedInput) && Path.GetExtension(trimmedInput).Equals(".llv", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.Write("选择播放方式: 1. 本地播放器 (默认)  2. H5浏览器播放: ");
+            var choice = Console.ReadLine();
+            if (choice == "2")
+            {
+                CommandManager.ExecuteCommand("playv", new[] { trimmedInput, "--html5" });
+            }
+            else
+            {
+                CommandManager.ExecuteCommand("playv", new[] { trimmedInput });
+            }
+            continue;
+        }
+
         var parts = input.Split(' ', StringSplitOptions.RemoveEmptyEntries);
         CommandManager.ExecuteCommand(parts[0], parts.Skip(1).ToArray());
     }
