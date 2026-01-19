@@ -39,6 +39,8 @@ class Program
     private const int STD_OUTPUT_HANDLE = -11;
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
 
+    static DateTime ProgramStartTime = DateTime.Now;
+
     static void Main(string[] args)
     {
         // 环境配置
@@ -600,6 +602,16 @@ public static class ListenManager
             await cmd.ExecuteNonQueryAsync();
 
             UI.PrintSuccess($"监听频道 '{channel}' 成功。");
+
+            // 发送启动通知
+            string machineName = Environment.MachineName;
+            string osVersion = Environment.OSVersion.ToString();
+            int processorCount = Environment.ProcessorCount;
+            string startTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            string message = $"程序已在 {machineName} 上启动。启动时间: {startTime}。系统: {osVersion}，CPU核心: {processorCount}";
+            string escapedMessage = message.Replace("'", "''");
+            using var notifyCmd = new NpgsqlCommand($"SELECT pg_notify('{channel}', '{escapedMessage}')", conn);
+            await notifyCmd.ExecuteNonQueryAsync();
 
             conn.Notification += (o, e) => {
                 UI.PrintInfo($"收到通知: {e.Payload}");
