@@ -1,6 +1,7 @@
 using System.Text;
 using System.Net;
 using System.Net.Mail;
+using Microsoft.Extensions.Configuration;
 
 namespace LL;
 
@@ -38,19 +39,32 @@ public static class Utils
         UI.PrintInfo("正在发送通知邮件...");
         try
         {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("config.json", optional: true);
+            var config = builder.Build();
+
+            string smtpHost = config["Email:SmtpHost"] ?? "smtp.qq.com";
+            int smtpPort = int.Parse(config["Email:SmtpPort"] ?? "587");
+            string username = config["Email:Username"] ?? "1243500742@qq.com";
+            string password = config["Email:Password"] ?? "***";
+            string fromAddress = config["Email:FromAddress"] ?? "1243500742@qq.com";
+            string fromName = config["Email:FromName"] ?? "给您关机啦！";
+            string toAddress = config["Email:ToAddress"] ?? "799942292@qq.com";
+
             using (MailMessage mailMessage = new MailMessage())
-            using (SmtpClient smtpClient = new SmtpClient("smtp.qq.com", 587))
+            using (SmtpClient smtpClient = new SmtpClient(smtpHost, smtpPort))
             {
-                mailMessage.To.Add("799942292@qq.com");
+                mailMessage.To.Add(toAddress);
                 mailMessage.Body = text;
                 mailMessage.IsBodyHtml = true;
                 mailMessage.BodyEncoding = Encoding.UTF8;
-                mailMessage.From = new MailAddress("1243500742@qq.com", "给您关机啦！");
+                mailMessage.From = new MailAddress(fromAddress, fromName);
                 mailMessage.Subject = "计算机名: " + System.Environment.MachineName + " - " + DateTime.Now.ToString();
                 mailMessage.SubjectEncoding = Encoding.UTF8;
 
                 smtpClient.EnableSsl = true;
-                smtpClient.Credentials = new NetworkCredential("1243500742@qq.com", "***");
+                smtpClient.Credentials = new NetworkCredential(username, password);
 
                 smtpClient.Send(mailMessage);
                 UI.PrintSuccess("邮件发送成功!");
