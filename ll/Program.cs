@@ -39,7 +39,9 @@ class Program
     private const int STD_OUTPUT_HANDLE = -11;
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
 
-    static DateTime ProgramStartTime = DateTime.Now;
+    public static DateTime ProgramStartTime = DateTime.Now;
+
+    public static bool HasDb = false;
 
     static void Main(string[] args)
     {
@@ -70,9 +72,12 @@ class Program
             PowerManager.StartIdleMonitor(new[] { "2h" });
             // 默认启动数据库监听
             string connString = GetConnectionString();
-            if (connString != null)
+            HasDb = connString != null;
+            if (HasDb)
             {
+                LogManager.Initialize(connString);
                 ListenManager.StartListen("ll_notifications", connString);
+                LogManager.Log("Info", "System", "CLI 启动");
             }
             EnterInteractiveMode(supportsVT);
         }
@@ -550,88 +555,6 @@ class Program
         catch
         {
             return null;
-        }
-    }
-}
-
-// 监听管理器
-public static class ListenManager
-{
-    public static bool IsListening { get; private set; } = false;
-    public static string CurrentChannel { get; private set; } = "";
-    public static Task? ListenTask { get; private set; }
-    public static CancellationTokenSource? Cts { get; private set; }
-
-    public static void StartListen(string channel, string connString)
-    {
-        if (IsListening)
-        {
-            UI.PrintInfo("监听已在运行。");
-            return;
-        }
-
-        Cts = new CancellationTokenSource();
-        ListenTask = Task.Run(() => ListenLoop(channel, connString, Cts));
-        IsListening = true;
-        CurrentChannel = channel;
-        UI.PrintSuccess($"已启动监听频道 '{channel}'。");
-    }
-
-    public static void StopListen()
-    {
-        if (!IsListening)
-        {
-            UI.PrintInfo("当前没有正在监听。");
-            return;
-        }
-
-        Cts?.Cancel();
-        IsListening = false;
-        CurrentChannel = "";
-        UI.PrintSuccess("已停止监听。");
-    }
-
-    private static async Task ListenLoop(string channel, string connString, CancellationTokenSource cts)
-    {
-        try
-        {
-            using var conn = new NpgsqlConnection(connString);
-            await conn.OpenAsync();
-
-            using var cmd = new NpgsqlCommand($"LISTEN {channel}", conn);
-            await cmd.ExecuteNonQueryAsync();
-
-            UI.PrintSuccess($"监听频道 '{channel}' 成功。");
-
-            // 发送启动通知
-            string machineName = Environment.MachineName;
-            string osVersion = Environment.OSVersion.ToString();
-            int processorCount = Environment.ProcessorCount;
-            string startTime = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-            string message = $"程序已在 {machineName} 上启动。启动时间: {startTime}。系统: {osVersion}，CPU核心: {processorCount}";
-            string escapedMessage = message.Replace("'", "''");
-            using var notifyCmd = new NpgsqlCommand($"SELECT pg_notify('{channel}', '{escapedMessage}')", conn);
-            await notifyCmd.ExecuteNonQueryAsync();
-
-            conn.Notification += (o, e) => {
-                UI.PrintInfo($"收到通知: {e.Payload}");
-            };
-
-            while (!cts.Token.IsCancellationRequested)
-            {
-                await conn.WaitAsync(cts.Token);
-            }
-        }
-        catch (Exception ex)
-        {
-            UI.PrintError($"监听失败: {ex.Message}");
-            IsListening = false;
-            CurrentChannel = "";
-        }
-        finally
-        {
-            ListenTask = null;
-            Cts = null;
         }
     }
 }

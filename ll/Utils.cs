@@ -2,6 +2,7 @@ using System.Text;
 using System.Net;
 using System.Net.Mail;
 using Microsoft.Extensions.Configuration;
+using LL;
 
 namespace LL;
 
@@ -68,11 +69,13 @@ public static class Utils
 
                 smtpClient.Send(mailMessage);
                 UI.PrintSuccess("邮件发送成功!");
+                LogManager.Log("Info", "Email", $"邮件发送成功: {text}");
             }
         }
         catch (Exception ex)
         {
             UI.PrintError($"邮件发送失败: {ex.Message}");
+            LogManager.Log("Error", "Email", $"邮件发送失败: {ex.Message}");
             try
             {
                 File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "log.txt"), $"{DateTime.Now}: {ex.Message}\r\n");
