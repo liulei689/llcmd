@@ -545,12 +545,28 @@ class Program
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("config.json", optional: true, reloadOnChange: true);
             var config = builder.Build();
-            string connString = config["Database:ConnectionString"];
-            if (string.IsNullOrWhiteSpace(connString))
+
+            string dbUser = config["Database:Username"] ?? "postgres";
+            string dbPass = config["Database:Password"] ?? "";
+            string dbName = config["Database:Database"] ?? "wuliudb_new";
+
+            bool sshEnabled = bool.Parse(config["SSH:Enabled"] ?? "false");
+            if (sshEnabled)
             {
+                var sshConn = new SSHConn();
+                if (!sshConn.OpenDbPort())
+                {
+                    UI.PrintError("SSH隧道建立失败，无法连接数据库。");
+                    return null;
+                }
+                // 使用本地端口
+                return $"Host=127.0.0.1;Port={sshConn.LocalPort};Username={dbUser};Password={dbPass};Database={dbName};SSL Mode=Disable;Trust Server Certificate=true;";
+            }
+            else
+            {
+                UI.PrintError("SSH未启用，无法连接数据库。");
                 return null;
             }
-            return connString;
         }
         catch
         {
