@@ -1,6 +1,8 @@
 ﻿using System.Text;
 using LL;
 using System.Runtime.InteropServices;
+using Microsoft.Win32;
+using System.Diagnostics;
 
 // ==================================================================================
 // LL CLI TOOL - Professional Edition
@@ -124,6 +126,9 @@ class Program
         CommandManager.RegisterCommand(64, "decv", "解密视频文件(.llv 到 .mp4)", args => VideoVaultCommands.Decrypt(args));
         CommandManager.RegisterCommand(65, "encf", "加密文件(生成 .llf)", args => FileVaultCommands.EncryptFile(args));
         CommandManager.RegisterCommand(66, "decf", "解密文件(.llf 到原格式)", args => FileVaultCommands.DecryptFile(args));
+
+        // 开机启动管理
+        CommandManager.RegisterCommand(70, "autostart", "开机启动管理", args => ManageAutoStart(args));
 
         // 常用快捷操作（面向普通用户）
         CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
@@ -363,5 +368,57 @@ class Program
             }
         }
         return false;
+    }
+
+    static void ManageAutoStart(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            // 显示当前状态
+            bool isInStartup = IsInStartup();
+            UI.PrintInfo($"开机启动状态: {(isInStartup ? "已启用" : "未启用")}");
+            return;
+        }
+
+        string action = args[0].ToLower();
+        if (action == "add" || action == "enable")
+        {
+            AddToStartup();
+        }
+        else if (action == "remove" || action == "disable")
+        {
+            RemoveFromStartup();
+        }
+        else
+        {
+            UI.PrintError("用法: autostart [add|remove]");
+        }
+    }
+
+    static bool IsInStartup()
+    {
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false))
+        {
+            return key?.GetValue("LL_CLI") != null;
+        }
+    }
+
+    static void AddToStartup()
+    {
+        string exePath = Process.GetCurrentProcess().MainModule.FileName;
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+        {
+            key.SetValue("LL_CLI", exePath);
+        }
+        UI.PrintSuccess("已添加到开机启动");
+    }
+
+    static void RemoveFromStartup()
+    {
+        using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true))
+        {
+            key.DeleteValue("LL_CLI", false);
+        }
+        UI.PrintSuccess("已从开机启动移除");
     }
 }
