@@ -3,6 +3,8 @@ using LL;
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using System.Diagnostics;
+using Npgsql;
+using Microsoft.Extensions.Configuration;
 
 // ==================================================================================
 // LL CLI TOOL - Professional Edition
@@ -65,6 +67,12 @@ class Program
             UI.PrintBanner();
             // 默认开启 2 小时闲时关机监听
             PowerManager.StartIdleMonitor(new[] { "2h" });
+            // 默认启动数据库监听
+            string connString = GetConnectionString();
+            if (connString != null)
+            {
+                ListenManager.StartListen("ll_notifications", connString);
+            }
             EnterInteractiveMode(supportsVT);
         }
         else
@@ -83,7 +91,7 @@ class Program
         CommandManager.RegisterCommand(2,  "gd",   "守护模式", args => GuardianManager.ToggleGuardianMode(args));
         CommandManager.RegisterCommand(3,  "sd",   "倒数关机", args => PowerManager.StartShutdownSequence(args));
         CommandManager.RegisterCommand(4,  "idle", "空闲关机", args => PowerManager.StartIdleMonitor(args));
-        CommandManager.RegisterCommand(5,  "st",   "任务状态", _ => PowerManager.ShowStatus());
+        CommandManager.RegisterCommand(5,  "st",   "任务状态", _ => ShowAllStatus());
         CommandManager.RegisterCommand(6,  "c",    "取消任务", _ => TaskManager.CancelLatest());
         CommandManager.RegisterCommand(7,  "abort","中止关机", _ => PowerManager.AbortSystemShutdown());
 
@@ -129,6 +137,11 @@ class Program
 
         // 开机启动管理
         CommandManager.RegisterCommand(70, "autostart", "开机启动管理", args => ManageAutoStart(args));
+
+        // PostgreSQL 监听通知
+        CommandManager.RegisterCommand(71, "listen", "监听PostgreSQL通知", args => ListenPostgreSQL(args));
+        CommandManager.RegisterCommand(72, "notify", "发送PostgreSQL通知", args => NotifyPostgreSQL(args));
+        CommandManager.RegisterCommand(73, "unlisten", "停止监听PostgreSQL通知", _ => UnlistenPostgreSQL());
 
         // 常用快捷操作（面向普通用户）
         CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
@@ -420,5 +433,194 @@ class Program
             key.DeleteValue("LL_CLI", false);
         }
         UI.PrintSuccess("已从开机启动移除");
+    }
+
+    static void ShowAllStatus()
+    {
+        PowerManager.ShowStatus();
+        Console.WriteLine();
+        UI.PrintHeader("监听状态");
+        if (ListenManager.IsListening)
+        {
+            UI.PrintResult("状态", "运行中");
+            UI.PrintResult("频道", ListenManager.CurrentChannel);
+        }
+        else
+        {
+            UI.PrintResult("状态", "未运行");
+        }
+    }
+
+    static async void ListenPostgreSQL(string[] args)
+    {
+        string channel = args.Length > 0 ? args[0] : "ll_notifications";
+        if (!IsValidChannelName(channel))
+        {
+            UI.PrintError("频道名无效，只能包含字母、数字、下划线，且不能以数字开头。");
+            return;
+        }
+
+        string connString = GetConnectionString();
+        if (connString == null) return;
+
+        ListenManager.StartListen(channel, connString);
+    }
+
+    static void UnlistenPostgreSQL()
+    {
+        ListenManager.StopListen();
+    }
+
+    static async void NotifyPostgreSQL(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            UI.PrintError("用法: notify <channel> <message> 或 notify <message> (使用默认频道 'll_notifications')");
+            return;
+        }
+
+        string channel;
+        string message;
+        if (args.Length == 1)
+        {
+            channel = "ll_notifications";
+            message = args[0];
+        }
+        else
+        {
+            channel = args[0];
+            message = string.Join(" ", args.Skip(1));
+        }
+
+        if (!IsValidChannelName(channel))
+        {
+            UI.PrintError("频道名无效，只能包含字母、数字、下划线，且不能以数字开头。");
+            return;
+        }
+
+        string connString = GetConnectionString();
+        if (connString == null) return;
+
+        try
+        {
+            using var conn = new NpgsqlConnection(connString);
+            await conn.OpenAsync();
+
+            // Escape single quotes in channel and message
+            string escapedChannel = channel.Replace("'", "''");
+            string escapedMessage = message.Replace("'", "''");
+            using var cmd = new NpgsqlCommand($"SELECT pg_notify('{escapedChannel}', '{escapedMessage}')", conn);
+            await cmd.ExecuteNonQueryAsync();
+
+            UI.PrintSuccess($"已发送通知到频道 '{channel}': {message}");
+        }
+        catch (Exception ex)
+        {
+            UI.PrintError($"发送失败: {ex.Message}");
+        }
+    }
+
+    static bool IsValidChannelName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        if (!char.IsLetter(name[0]) && name[0] != '_') return false;
+        for (int i = 1; i < name.Length; i++)
+        {
+            if (!char.IsLetterOrDigit(name[i]) && name[i] != '_') return false;
+        }
+        return true;
+    }
+
+    static string GetConnectionString()
+    {
+        try
+        {
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(AppContext.BaseDirectory)
+                .AddJsonFile("config.json", optional: true, reloadOnChange: true);
+            var config = builder.Build();
+            string connString = config["Database:ConnectionString"];
+            if (string.IsNullOrWhiteSpace(connString))
+            {
+                return null;
+            }
+            return connString;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
+
+// 监听管理器
+public static class ListenManager
+{
+    public static bool IsListening { get; private set; } = false;
+    public static string CurrentChannel { get; private set; } = "";
+    public static Task? ListenTask { get; private set; }
+    public static CancellationTokenSource? Cts { get; private set; }
+
+    public static void StartListen(string channel, string connString)
+    {
+        if (IsListening)
+        {
+            UI.PrintInfo("监听已在运行。");
+            return;
+        }
+
+        Cts = new CancellationTokenSource();
+        ListenTask = Task.Run(() => ListenLoop(channel, connString, Cts));
+        IsListening = true;
+        CurrentChannel = channel;
+        UI.PrintSuccess($"已启动监听频道 '{channel}'。");
+    }
+
+    public static void StopListen()
+    {
+        if (!IsListening)
+        {
+            UI.PrintInfo("当前没有正在监听。");
+            return;
+        }
+
+        Cts?.Cancel();
+        IsListening = false;
+        CurrentChannel = "";
+        UI.PrintSuccess("已停止监听。");
+    }
+
+    private static async Task ListenLoop(string channel, string connString, CancellationTokenSource cts)
+    {
+        try
+        {
+            using var conn = new NpgsqlConnection(connString);
+            await conn.OpenAsync();
+
+            using var cmd = new NpgsqlCommand($"LISTEN {channel}", conn);
+            await cmd.ExecuteNonQueryAsync();
+
+            UI.PrintSuccess($"监听频道 '{channel}' 成功。");
+
+            conn.Notification += (o, e) => {
+                UI.PrintInfo($"收到通知: {e.Payload}");
+            };
+
+            while (!cts.Token.IsCancellationRequested)
+            {
+                await conn.WaitAsync(cts.Token);
+            }
+        }
+        catch (Exception ex)
+        {
+            UI.PrintError($"监听失败: {ex.Message}");
+            IsListening = false;
+            CurrentChannel = "";
+        }
+        finally
+        {
+            ListenTask = null;
+            Cts = null;
+        }
     }
 }

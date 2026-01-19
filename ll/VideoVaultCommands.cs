@@ -1111,14 +1111,12 @@ Your browser does not support the video tag.
 
         long start = 0;
         long end = totalSize - 1;
-        bool isPartial = false;
 
         if (request.Headers["Range"] != null)
         {
             var range = ParseRange(request.Headers["Range"], totalSize);
             start = range.Start;
             end = range.End;
-            isPartial = true;
             response.StatusCode = 206;
             response.Headers.Add("Content-Range", $"bytes {start}-{end}/{totalSize}");
         }
