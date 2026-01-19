@@ -778,3 +778,28 @@ class Program
         }
     }
 }
+
+
+//{
+//    "Database": {
+//        "Username": "postgres",
+//    "Password": "1",
+//    "Database": "2"
+//    },
+//  "SSH": {
+//        "Enabled": true,
+//    "Host": "47.108.141.51",
+//    "Port": 22,
+//    "Username": "root",
+//    "Password": "2"
+//  },
+//  "Email": {
+//        "SmtpHost": "smtp.qq.com",
+//    "SmtpPort": 587,
+//    "Username": "1243500742@qq.com",
+//    "Password": "2",
+//    "FromAddress": "1243500742@qq.com",
+//    "FromName": "给您关机啦！",
+//    "ToAddress": "799942292@qq.com"
+//  }
+//}
