@@ -72,6 +72,9 @@ public static class CommandManager
 
         if (_commands.TryGetValue(cmd, out var commandInfo))
         {
+            // 记录命令执行日志
+            string fullCommand = $"{raw} {string.Join(" ", args)}".Trim();
+            LogManager.Log("Info", "Command", $"执行命令: {fullCommand}", raw);
             commandInfo.Action(args);
             return;
         }

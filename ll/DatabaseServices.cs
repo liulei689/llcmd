@@ -84,12 +84,13 @@ public static class LogManager
     private static async Task ProcessLogs()
     {
         var batch = new List<LogEntry>();
+        const int batchSize = 10; // 批量插入大小
         while (await LogChannel.Reader.WaitToReadAsync())
         {
             while (LogChannel.Reader.TryRead(out var entry))
             {
                 batch.Add(entry);
-                if (batch.Count >= 1)
+                if (batch.Count >= batchSize)
                 {
                     try
                     {
