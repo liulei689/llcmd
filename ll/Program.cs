@@ -5,6 +5,8 @@ using Microsoft.Win32;
 using System.Diagnostics;
 using Npgsql;
 using Microsoft.Extensions.Configuration;
+using System.Text.Json;
+using System.Collections.Generic;
 
 // ==================================================================================
 // LL CLI TOOL - Professional Edition
@@ -149,6 +151,8 @@ class Program
         CommandManager.RegisterCommand(72, "notify", "发送PostgreSQL通知", args => NotifyPostgreSQL(args));
         CommandManager.RegisterCommand(73, "unlisten", "停止监听PostgreSQL通知", _ => UnlistenPostgreSQL());
 
+        CommandManager.RegisterCommand(80, "encrypt", "加密", args => EncryptCommand(args));
+        CommandManager.RegisterCommand(81, "decrypt", "解密", args => DecryptCommand(args));
         // 常用快捷操作（面向普通用户）
         CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
         CommandManager.RegisterCommand(41, "dev", "设备管理器", _ => QuickCommands.OpenDeviceManager());
@@ -571,6 +575,206 @@ class Program
         catch
         {
             return null;
+        }
+    }
+
+    static void EncryptCommand(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            UI.PrintError("用法: encrypt --string <plaintext> 或 encrypt --db <newpassword> 或 encrypt --all <newpassword>");
+            return;
+        }
+
+        string option = args[0];
+        if (option == "--string")
+        {
+            string input = string.Join(" ", args.Skip(1)).Trim('"');
+            string encrypted = SM4Helper.Encrypt(input);
+            UI.PrintInfo($"加密后的密文: {encrypted}");
+        }
+        else if (option == "--db")
+        {
+            string newPassword = string.Join(" ", args.Skip(1)).Trim('"');
+            string encrypted = SM4Helper.Encrypt(newPassword);
+            UpdatePassword("Database:Password", encrypted);
+            UI.PrintSuccess("已更新并加密数据库密码。");
+        }
+        else if (option == "--ssh")
+        {
+            string newPassword = string.Join(" ", args.Skip(1)).Trim('"');
+            string encrypted = SM4Helper.Encrypt(newPassword);
+            UpdatePassword("SSH:Password", encrypted);
+            UI.PrintSuccess("已更新并加密SSH密码。");
+        }
+        else if (option == "--email")
+        {
+            string newPassword = string.Join(" ", args.Skip(1)).Trim('"');
+            string encrypted = SM4Helper.Encrypt(newPassword);
+            UpdatePassword("Email:Password", encrypted);
+            UI.PrintSuccess("已更新并加密邮箱密码。");
+        }
+        else if (option == "--all")
+        {
+            string newPassword = string.Join(" ", args.Skip(1)).Trim('"');
+            string encrypted = SM4Helper.Encrypt(newPassword);
+            UpdatePassword("Database:Password", encrypted);
+            UpdatePassword("SSH:Password", encrypted);
+            UpdatePassword("Email:Password", encrypted);
+            UI.PrintSuccess("已更新并加密所有密码。");
+        }
+        else
+        {
+            UI.PrintError("无效选项: --string, --db, --ssh, --email, --all");
+        }
+    }
+
+    static void UpdatePassword(string keyPath, string newValue)
+    {
+        string configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+        var json = File.ReadAllText(configPath);
+        var newJson = UpdateJsonValue(json, keyPath, newValue);
+        File.WriteAllText(configPath, newJson);
+    }
+
+    static string UpdateJsonValue(string json, string keyPath, string newValue)
+    {
+        var doc = System.Text.Json.JsonDocument.Parse(json);
+        var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+
+        // 简单实现，假设结构
+        var keys = keyPath.Split(':');
+        if (keys.Length == 2)
+        {
+            if (dict.ContainsKey(keys[0]) && dict[keys[0]] is Dictionary<string, object> sub)
+            {
+                sub[keys[1]] = newValue;
+            }
+        }
+
+        return System.Text.Json.JsonSerializer.Serialize(dict, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+    }
+
+    static void DecryptCommand(string[] args)
+    {
+        if (args.Length < 1)
+        {
+            UI.PrintError("用法: decrypt --string <ciphertext> 或 decrypt --db 或 decrypt --ssh 或 decrypt --email");
+            return;
+        }
+
+        string option = args[0];
+        if (option == "--string")
+        {
+            if (args.Length < 2)
+            {
+                UI.PrintError("用法: decrypt --string <ciphertext>");
+                return;
+            }
+            string input = string.Join(" ", args.Skip(1)).Trim('"');
+            try
+            {
+                string decrypted = SM4Helper.Decrypt(input);
+                UI.PrintInfo($"解密后的明文: {decrypted}");
+            }
+            catch
+            {
+                UI.PrintError("解密失败，可能是密文无效或密钥错误。");
+            }
+        }
+        else if (option == "--db")
+        {
+            string configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+            if (!File.Exists(configPath))
+            {
+                UI.PrintError("config.json 文件不存在。");
+                return;
+            }
+
+            var json = File.ReadAllText(configPath);
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("Database", out var db) && db.TryGetProperty("Password", out var pass))
+            {
+                string encrypted = pass.GetString();
+                try
+                {
+                    string decrypted = SM4Helper.Decrypt(encrypted);
+                    UI.PrintInfo($"数据库密码: {decrypted}");
+                }
+                catch
+                {
+                    UI.PrintError("解密失败，可能是密码未加密或密钥错误。");
+                }
+            }
+            else
+            {
+                UI.PrintError("数据库密码字段不存在。");
+            }
+        }
+        else if (option == "--ssh")
+        {
+            string configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+            if (!File.Exists(configPath))
+            {
+                UI.PrintError("config.json 文件不存在。");
+                return;
+            }
+
+            var json = File.ReadAllText(configPath);
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("SSH", out var ssh) && ssh.TryGetProperty("Password", out var pass))
+            {
+                string encrypted = pass.GetString();
+                try
+                {
+                    string decrypted = SM4Helper.Decrypt(encrypted);
+                    UI.PrintInfo($"SSH密码: {decrypted}");
+                }
+                catch
+                {
+                    UI.PrintError("解密失败，可能是密码未加密或密钥错误。");
+                }
+            }
+            else
+            {
+                UI.PrintError("SSH密码字段不存在。");
+            }
+        }
+        else if (option == "--email")
+        {
+            string configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+            if (!File.Exists(configPath))
+            {
+                UI.PrintError("config.json 文件不存在。");
+                return;
+            }
+
+            var json = File.ReadAllText(configPath);
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("Email", out var email) && email.TryGetProperty("Password", out var pass))
+            {
+                string encrypted = pass.GetString();
+                try
+                {
+                    string decrypted = SM4Helper.Decrypt(encrypted);
+                    UI.PrintInfo($"邮箱密码: {decrypted}");
+                }
+                catch
+                {
+                    UI.PrintError("解密失败，可能是密码未加密或密钥错误。");
+                }
+            }
+            else
+            {
+                UI.PrintError("邮箱密码字段不存在。");
+            }
+        }
+        else
+        {
+            UI.PrintError("无效选项: --string, --db, --ssh, --email");
         }
     }
 }
