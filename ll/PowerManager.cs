@@ -95,6 +95,7 @@ public static class PowerManager
                     Console.Title = originalTitle;
                 Utils.SendEmailTo("系统通知 - 倒计时关机", $"系统于 {DateTime.Now} 在 {Environment.MachineName} 上自动启动关机程序");
                 LogManager.Log("Info", "System", $"自动关机 - {Environment.MachineName}");
+                Program.LockStartTime = null;
                 ExecuteShutdown();
             }
             catch (OperationCanceledException)
@@ -203,6 +204,7 @@ public static class PowerManager
                         try
                         {
                             NativeMethods.LockWorkStation();
+                            Program.LockStartTime = DateTime.Now;
                             Utils.SendEmailTo("系统通知 - 自动锁屏", $"系统检测到长时间无人操作，已自动锁屏。当前空闲时间: {idle:hh\\:mm\\:ss}，机器: {Environment.MachineName}");
                             LogManager.Log("Info", "System", $"自动锁屏，空闲时间: {idle:hh\\:mm\\:ss} - {Environment.MachineName}");
                         }
@@ -230,6 +232,7 @@ public static class PowerManager
                         UI.PrintInfo($"检测到长时间无人使用 ({TimeSpan.FromSeconds(idleSeconds):hh\\:mm\\:ss})，执行自动关机。");
                         Utils.SendEmailTo("系统通知 - 自动关机", $"系统检测到长时间无人操作，已执行自动关机。空闲时间: {idle:hh\\:mm\\:ss}，机器: {Environment.MachineName}");
                         LogManager.Log("Info", "System", $"因长时间无操作自动关机，空闲时间: {idle:hh\\:mm\\:ss} - {Environment.MachineName}");
+                        Program.LockStartTime = null;
                         ExecuteShutdown();
                         break;
                     }
@@ -244,6 +247,10 @@ public static class PowerManager
 
                     // Always show full idle time (minutes keep increasing; not stuck at 59s)
                     // Keep UI quiet: only reflect state in title.
+                    int guardianCountdown = Math.Max(0, (int)(IdleEnterSeconds - idleSeconds));
+                    int lockCountdown = Math.Max(0, (int)(IdleLockSeconds - idleSeconds));
+                    Program.GuardianCountdown = guardianCountdown;
+                    Program.LockCountdown = lockCountdown;
                     if (OperatingSystem.IsWindows())
                         Program.IdleTimeDisplay = $"空闲: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
                         Program.UpdateConsoleTitle();

@@ -55,6 +55,7 @@ public static class GuardianManager
 
     private static void StartGuardianMode()
     {
+        Program.GuardianStartTime = DateTime.Now;
         _isActive = true;
         Console.CursorVisible = false;
         Console.Clear();
@@ -95,6 +96,7 @@ public static class GuardianManager
         Console.CursorVisible = true;
         Console.Clear();
         UI.PrintSuccess("守护模式已关闭。系统转入后台静默监听。");
+        Program.GuardianStartTime = null;
     }
 
     private static void EnqueueEvent(string text)

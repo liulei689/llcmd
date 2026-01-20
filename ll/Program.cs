@@ -49,6 +49,10 @@ class Program
     public static bool IsDBListening = false;
     public static string IdleTimeDisplay = "";
     public static string ShutdownTimeDisplay = "";
+    public static DateTime? GuardianStartTime;
+    public static DateTime? LockStartTime;
+    public static int GuardianCountdown = 0;
+    public static int LockCountdown = 0;
 
     static void Main(string[] args)
     {
@@ -796,14 +800,15 @@ class Program
         string sshStatus = IsSSHConnected ? "SSH:连" : "SSH:未";
         string dbStatus = IsDBListening ? "队列:听" : "队列:未";
         string timeDisplay = "";
+        if (GuardianCountdown > 0)
+            timeDisplay += $"守护倒计时:{GuardianCountdown / 3600:D2}:{(GuardianCountdown % 3600) / 60:D2}:{GuardianCountdown % 60:D2} ";
+        if (LockCountdown > 0)
+            timeDisplay += $"锁屏倒计时:{LockCountdown / 3600:D2}:{(LockCountdown % 3600) / 60:D2}:{LockCountdown % 60:D2} ";
         if (!string.IsNullOrEmpty(IdleTimeDisplay))
-        {
-            timeDisplay = IdleTimeDisplay;
-        }
-        else if (!string.IsNullOrEmpty(ShutdownTimeDisplay))
-        {
-            timeDisplay = ShutdownTimeDisplay;
-        }
+            timeDisplay += $"{IdleTimeDisplay} ";
+        if (!string.IsNullOrEmpty(ShutdownTimeDisplay))
+            timeDisplay += $"{ShutdownTimeDisplay} ";
+        timeDisplay = timeDisplay.Trim();
         Console.Title = $"LL命令行 | {idleStatus} | {sshStatus} | {dbStatus} | {timeDisplay}";
     }
 }
