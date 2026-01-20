@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using SqlSugar;
 using Npgsql;
 using System.IO;
+using System.Threading;
 
 namespace LL;
 
@@ -84,13 +85,19 @@ public static class LogManager
     private static async Task ProcessLogs()
     {
         var batch = new List<LogEntry>();
-        const int batchSize = 10; // 批量插入大小
+        var timer = new PeriodicTimer(TimeSpan.FromSeconds(5)); // Batch every 5 seconds
+
         while (await LogChannel.Reader.WaitToReadAsync())
         {
             while (LogChannel.Reader.TryRead(out var entry))
             {
                 batch.Add(entry);
-                if (batch.Count >= batchSize)
+            }
+
+            // Check if timer elapsed or batch is large
+            if (await timer.WaitForNextTickAsync())
+            {
+                if (batch.Count > 0)
                 {
                     try
                     {
