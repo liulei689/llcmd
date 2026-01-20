@@ -38,6 +38,8 @@ class Program
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GetStdHandle(int nStdHandle);
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
     private const int STD_OUTPUT_HANDLE = -11;
     private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
@@ -61,6 +63,15 @@ class Program
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.Unicode;
         Console.Title = "LL 命令行工具";
+        // 顶部控制栏设为黑色（Win10+，仅对控制台窗口有效）
+        IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow();
+        if (hWnd != IntPtr.Zero)
+        {
+            // DWM API: Immersive dark mode for title bar
+            const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+            int dark = 1;
+            DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref dark, sizeof(int));
+        }
         // Hide maximize, minimize, and close buttons
         HideConsoleButtons();
 
