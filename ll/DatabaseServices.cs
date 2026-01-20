@@ -156,8 +156,10 @@ public static class ListenManager
         ListenTask = Task.Run(() => ListenLoop(channel, connString, Cts));
         IsListening = true;
         CurrentChannel = channel;
-        UI.PrintSuccess($"已启动监听频道 '{channel}'。");
-        LogManager.Log("Info", "Database", $"启动监听频道 '{channel}'");
+        // 不在命令行直接输出启动信息，改为记录日志并由顶部状态显示
+        LogManager.Log("Info", "Database", $"尝试启动监听频道 '{channel}'");
+        Program.IsDBListening = true;
+        Program.UpdateConsoleTitle();
     }
 
     public static void StopListen()
@@ -172,8 +174,10 @@ public static class ListenManager
         IsListening = false;
         string channel = CurrentChannel;
         CurrentChannel = "";
-        UI.PrintSuccess("已停止监听。");
+        // 不在命令行输出，记录日志并更新状态
         LogManager.Log("Info", "Database", $"停止监听频道 '{channel}'");
+        Program.IsDBListening = false;
+        Program.UpdateConsoleTitle();
     }
 
     private static async Task ListenLoop(string channel, string connString, CancellationTokenSource cts)
@@ -186,7 +190,10 @@ public static class ListenManager
             using var cmd = new NpgsqlCommand($"LISTEN {channel}", conn);
             await cmd.ExecuteNonQueryAsync();
 
-            UI.PrintSuccess($"监听频道 '{channel}' 成功。");
+            // 监听成功，不在命令行输出，更新状态并记录日志
+            Program.IsDBListening = true;
+            Program.UpdateConsoleTitle();
+            LogManager.Log("Info", "Database", $"监听频道 '{channel}' 成功");
 
             string machineName = Environment.MachineName;
             string osVersion = Environment.OSVersion.ToString();
@@ -208,10 +215,12 @@ public static class ListenManager
         }
         catch (Exception ex)
         {
-            UI.PrintError($"监听失败: {ex.Message}");
+            // 不在命令行输出错误，记录日志并更新状态
             LogManager.Log("Error", "Database", $"监听失败: {ex.Message}");
             IsListening = false;
             CurrentChannel = "";
+            Program.IsDBListening = false;
+            Program.UpdateConsoleTitle();
         }
         finally
         {

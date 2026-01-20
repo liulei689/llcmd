@@ -86,7 +86,8 @@ public static class PowerManager
                     if (remaining < TimeSpan.Zero) remaining = TimeSpan.Zero;
 
                     if (OperatingSystem.IsWindows())
-                        Console.Title = $"LL - 剩余时间 {remaining:hh\\:mm\\:ss}";
+                        Program.ShutdownTimeDisplay = $"剩余时间 {remaining:hh\\:mm\\:ss}";
+                        Program.UpdateConsoleTitle();
                     await Task.Delay(1000, token);
                 }
 
@@ -98,12 +99,14 @@ public static class PowerManager
             catch (OperationCanceledException)
             {
                 if (OperatingSystem.IsWindows())
-                    Console.Title = originalTitle;
+                    Program.ShutdownTimeDisplay = "";
+                    Program.UpdateConsoleTitle();
             }
             catch (Exception ex)
             {
                 if (OperatingSystem.IsWindows())
-                    Console.Title = originalTitle;
+                    Program.ShutdownTimeDisplay = "";
+                    Program.UpdateConsoleTitle();
                 LogException(ex);
             }
             finally
@@ -228,7 +231,8 @@ public static class PowerManager
                     // Always show full idle time (minutes keep increasing; not stuck at 59s)
                     // Keep UI quiet: only reflect state in title.
                     if (OperatingSystem.IsWindows())
-                        Console.Title = $"LL - 空闲: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
+                        Program.IdleTimeDisplay = $"空闲: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
+                        Program.UpdateConsoleTitle();
                     await Task.Delay(2000, token);
                 }
             }
@@ -236,7 +240,8 @@ public static class PowerManager
             finally
             {
                 if (OperatingSystem.IsWindows())
-                    Console.Title = originalTitle;
+                    Program.IdleTimeDisplay = "";
+                    Program.UpdateConsoleTitle();
 
                 TaskManager.Clear(localCts);
             }

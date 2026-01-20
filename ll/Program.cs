@@ -44,6 +44,11 @@ class Program
     public static DateTime ProgramStartTime = DateTime.Now;
 
     public static bool HasDb = false;
+    public static bool IsIdleMonitoring = false;
+    public static bool IsSSHConnected = false;
+    public static bool IsDBListening = false;
+    public static string IdleTimeDisplay = "";
+    public static string ShutdownTimeDisplay = "";
 
     static void Main(string[] args)
     {
@@ -70,16 +75,23 @@ class Program
         if (args.Length == 0)
         {
             UI.PrintBanner();
+            UpdateConsoleTitle();
             // 默认开启 2 小时闲时关机监听
             PowerManager.StartIdleMonitor(new[] { "2h" });
+            IsIdleMonitoring = true;
+            UpdateConsoleTitle();
             // 默认启动数据库监听
             string connString = GetConnectionString();
             HasDb = connString != null;
             if (HasDb)
             {
+                IsSSHConnected = true;
+                UpdateConsoleTitle();
                 LogManager.Initialize(connString);
                 ListenManager.StartListen("ll_notifications", connString);
                 LogManager.Log("Info", "System", "CLI 启动");
+                IsDBListening = true;
+                UpdateConsoleTitle();
             }
             EnterInteractiveMode(supportsVT);
         }
@@ -205,7 +217,7 @@ class Program
 
     static void EnterInteractiveMode(bool supportsVT)
     {
-        UI.PrintSuccess("交互模式已就绪");
+        // UI.PrintSuccess("交互模式已就绪");
         // 提示信息移除：保持界面干净
 
         HistoryManager.EnsureSessionLoaded();
@@ -568,7 +580,7 @@ class Program
             }
             else
             {
-                UI.PrintError("SSH未启用，无法连接数据库。");
+                // UI.PrintError("SSH未启用，无法连接数据库。");
                 return null;
             }
         }
@@ -776,6 +788,23 @@ class Program
         {
             UI.PrintError("无效选项: --string, --db, --ssh, --email");
         }
+    }
+
+    public static void UpdateConsoleTitle()
+    {
+        string idleStatus = IsIdleMonitoring ? "空闲:运行" : "空闲:未";
+        string sshStatus = IsSSHConnected ? "SSH:连" : "SSH:未";
+        string dbStatus = IsDBListening ? "队列:听" : "队列:未";
+        string timeDisplay = "";
+        if (!string.IsNullOrEmpty(IdleTimeDisplay))
+        {
+            timeDisplay = IdleTimeDisplay;
+        }
+        else if (!string.IsNullOrEmpty(ShutdownTimeDisplay))
+        {
+            timeDisplay = ShutdownTimeDisplay;
+        }
+        Console.Title = $"LL命令行 | {idleStatus} | {sshStatus} | {dbStatus} | {timeDisplay}";
     }
 }
 
