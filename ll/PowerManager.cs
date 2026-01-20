@@ -252,7 +252,7 @@ public static class PowerManager
                     Program.GuardianCountdown = guardianCountdown;
                     Program.LockCountdown = lockCountdown;
                     if (OperatingSystem.IsWindows())
-                        Program.IdleTimeDisplay = $"空闲: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
+                        Program.IdleTimeDisplay = $"空闲/关机: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
                         Program.UpdateConsoleTitle();
                     await Task.Delay(2000, token);
                 }
