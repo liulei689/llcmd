@@ -7,6 +7,7 @@ using Npgsql;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 using System.Collections.Generic;
+using LL.Native;
 
 // ==================================================================================
 // LL CLI TOOL - Professional Edition
@@ -133,6 +134,8 @@ class Program
         CommandManager.RegisterCommand(18, "admin", "申请管理员权限", args => ElevationCommands.Elevate(args));
         CommandManager.RegisterCommand(19, "settime", "修改系统时间", args => SystemCommands.SetTime(args));
         CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
+
+        CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = NativeMethods.GetConsoleWindow(); NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE); });
 
         // 实用工具（扁平化：直接用命令名，不用 util 前缀）
         CommandManager.RegisterCommand(20, "ps", "进程列表", args => UtilityCommands.Execute(["ps", ..args]));
