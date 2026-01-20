@@ -411,6 +411,7 @@ public static class GuardianManager
             WriteAt(leftX, topY + 1, "守护模式：已启用（输入 gd 回车退出）");
             Console.ForegroundColor = faint;
             WriteAt(leftX + 42, topY + 1, $"主机:{Environment.MachineName}  在线:{TimeSpan.FromMilliseconds(Environment.TickCount64):dd\\:hh\\:mm\\:ss}  时间:{DateTime.Now:HH:mm:ss}");
+            WriteAt(leftX + 42, topY + 2, $"总运行时长: {Utils.FormatRuntime(Program.TotalRuntimeSeconds)}");
             Console.ForegroundColor = frame;
             WriteAt(leftX, topY + 2, new string('-', Math.Min(fullW, w - leftX - 1)));
 

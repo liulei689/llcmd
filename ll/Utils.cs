@@ -102,4 +102,10 @@ public static class Utils
         if (string.IsNullOrEmpty(value)) return value;
         return value.Length <= maxLength ? value : value.Substring(0, maxLength);
     }
+
+    public static string FormatRuntime(long seconds)
+    {
+        var ts = TimeSpan.FromSeconds(seconds);
+        return $"{ts.TotalHours:F1} 小时 / {ts.TotalDays:F1} 天 / {ts.TotalDays / 30:F1} 月 / {ts.TotalDays / 365:F1} 年";
+    }
 }

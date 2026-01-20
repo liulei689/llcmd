@@ -56,6 +56,9 @@ class Program
     public static DateTime? LockStartTime;
     public static int GuardianCountdown = 0;
     public static int LockCountdown = 0;
+    private static long _totalRuntimeSeconds;
+    public static long TotalRuntimeSeconds { get; private set; }
+    private static DateTime _lastUpdateTime;
 
     static void Main(string[] args)
     {
@@ -86,7 +89,19 @@ class Program
             CommandManager.ExecuteCommand(args[1], args.Skip(2).ToArray());
             return;
         }
-
+        // 启动后台任务，每分钟更新总运行时长
+        Task.Run(async () =>
+        {
+            while (true)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(1));
+                var now = DateTime.Now;
+                _totalRuntimeSeconds += (long)(now - _lastUpdateTime).TotalSeconds;
+                _lastUpdateTime = now;
+                TotalRuntimeSeconds = _totalRuntimeSeconds;
+                UpdateConfigTotalRuntime(_totalRuntimeSeconds);
+            }
+        });
         // 入口点
         if (args.Length == 0)
         {
@@ -115,6 +130,7 @@ class Program
         {
             CommandManager.ExecuteCommand(args[0], args.Skip(1).ToArray());
         }
+
     }
 
     static void Initialize()
@@ -799,7 +815,7 @@ class Program
             }
             else
             {
-                UI.PrintError("邮箱密码字段不存在。");
+                UI.PrintError("邮箱密码字段不存在。”");
             }
         }
         else
@@ -824,6 +840,24 @@ class Program
             timeDisplay += $"{ShutdownTimeDisplay} ";
         timeDisplay = timeDisplay.Trim();
         Console.Title = $"LL命令行 | {idleStatus} | {sshStatus} | {dbStatus} | {timeDisplay}";
+    }
+
+    private static void UpdateConfigTotalRuntime(long totalSeconds)
+    {
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+            var json = File.ReadAllText(configPath);
+            var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new();
+
+            dict["TotalRuntimeSeconds"] = totalSeconds;
+
+            var newJson = System.Text.Json.JsonSerializer.Serialize(dict, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(configPath, newJson);
+        }
+        catch { }
     }
 }
 
