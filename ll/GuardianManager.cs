@@ -27,8 +27,18 @@ public static class GuardianManager
     {
         lock (_lock)
         {
-            if (_isActive) StopGuardianMode();
-            else StartGuardianMode();
+            if (_isActive)
+            {
+                StopGuardianMode();
+                Utils.SendEmailTo("系统通知 - 守护模式", $"系统于 {DateTime.Now} 在 {Environment.MachineName} 上退出守护模式");
+                LogManager.Log("Info", "System", $"退出守护模式 - {Environment.MachineName}");
+            }
+            else
+            {
+                StartGuardianMode();
+                Utils.SendEmailTo("系统通知 - 守护模式", $"系统于 {DateTime.Now} 在 {Environment.MachineName} 上进入守护模式");
+                LogManager.Log("Info", "System", $"进入守护模式 - {Environment.MachineName}");
+            }
         }
     }
 

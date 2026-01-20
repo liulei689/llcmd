@@ -35,7 +35,7 @@ public static class Utils
         }
     }
 
-    public static void SendEmailTo(string text)
+    public static void SendEmailTo(string subject, string body)
     {
         UI.PrintInfo("正在发送通知邮件...");
         try
@@ -57,11 +57,11 @@ public static class Utils
             using (SmtpClient smtpClient = new SmtpClient(smtpHost, smtpPort))
             {
                 mailMessage.To.Add(toAddress);
-                mailMessage.Body = text;
+                mailMessage.Body = Environment.MachineName+ body;
                 mailMessage.IsBodyHtml = true;
                 mailMessage.BodyEncoding = Encoding.UTF8;
-                mailMessage.From = new MailAddress(fromAddress, fromName);
-                mailMessage.Subject = "计算机名: " + System.Environment.MachineName + " - " + DateTime.Now.ToString();
+                mailMessage.From = new MailAddress(fromAddress, subject); // Use subject as FromName
+                mailMessage.Subject = subject;
                 mailMessage.SubjectEncoding = Encoding.UTF8;
 
                 smtpClient.EnableSsl = true;
@@ -69,7 +69,7 @@ public static class Utils
 
                 smtpClient.Send(mailMessage);
                 UI.PrintSuccess("邮件发送成功!");
-                LogManager.Log("Info", "Email", $"邮件发送成功: {text}");
+                LogManager.Log("Info", "Email", $"邮件发送成功: {body}");
             }
         }
         catch (Exception ex)

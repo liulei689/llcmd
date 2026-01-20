@@ -93,7 +93,8 @@ public static class PowerManager
 
                 if (OperatingSystem.IsWindows())
                     Console.Title = originalTitle;
-                Utils.SendEmailTo($"系统于 {DateTime.Now} 自动启动关机程序");
+                Utils.SendEmailTo("系统通知 - 倒计时关机", $"系统于 {DateTime.Now} 在 {Environment.MachineName} 上自动启动关机程序");
+                LogManager.Log("Info", "System", $"自动关机 - {Environment.MachineName}");
                 ExecuteShutdown();
             }
             catch (OperationCanceledException)
@@ -174,6 +175,8 @@ public static class PowerManager
                 bool isIdleMode = false;
                 bool guardianAutoActive = false;
                 bool lockedThisIdleSession = false;
+                int lastLoggedIdleMinutes = -1; // Track last logged idle minutes
+
                 while (!token.IsCancellationRequested)
                 {
                     uint idleTimeMs = GetIdleTime();
@@ -200,6 +203,8 @@ public static class PowerManager
                         try
                         {
                             NativeMethods.LockWorkStation();
+                            Utils.SendEmailTo("系统通知 - 自动锁屏", $"系统检测到长时间无人操作，已自动锁屏。当前空闲时间: {idle:hh\\:mm\\:ss}，机器: {Environment.MachineName}");
+                            LogManager.Log("Info", "System", $"自动锁屏，空闲时间: {idle:hh\\:mm\\:ss} - {Environment.MachineName}");
                         }
                         catch { }
                     }
@@ -223,9 +228,18 @@ public static class PowerManager
                         if (OperatingSystem.IsWindows())
                             Console.Title = originalTitle;
                         UI.PrintInfo($"检测到长时间无人使用 ({TimeSpan.FromSeconds(idleSeconds):hh\\:mm\\:ss})，执行自动关机。");
-                        Utils.SendEmailTo($"系统于 {DateTime.Now} 因长时间无操作 ({idleSeconds}秒) 自动关机。");
+                        Utils.SendEmailTo("系统通知 - 自动关机", $"系统检测到长时间无人操作，已执行自动关机。空闲时间: {idle:hh\\:mm\\:ss}，机器: {Environment.MachineName}");
+                        LogManager.Log("Info", "System", $"因长时间无操作自动关机，空闲时间: {idle:hh\\:mm\\:ss} - {Environment.MachineName}");
                         ExecuteShutdown();
                         break;
+                    }
+
+                    // Log idle time every minute increase
+                    int currentIdleMinutes = (int)idle.TotalMinutes;
+                    if (currentIdleMinutes > lastLoggedIdleMinutes)
+                    {
+                        LogManager.Log("Info", "System", $"空闲时间更新: {idle:hh\\:mm\\:ss}");
+                        lastLoggedIdleMinutes = currentIdleMinutes;
                     }
 
                     // Always show full idle time (minutes keep increasing; not stuck at 59s)
