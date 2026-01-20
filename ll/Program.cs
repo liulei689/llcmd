@@ -6,6 +6,7 @@ using System.Diagnostics;
 using Npgsql;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Collections.Generic;
 using LL.Native;
 
@@ -90,11 +91,28 @@ class Program
             return;
         }
         // 启动后台任务，每分钟更新总运行时长
+        _lastUpdateTime = DateTime.Now;
+        // 从config读取初始总运行时长
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                var node = JsonNode.Parse(json);
+                if (node is JsonObject obj && obj["TotalRuntimeSeconds"] is JsonValue val && val.TryGetValue(out long total))
+                {
+                    _totalRuntimeSeconds = total;
+                    TotalRuntimeSeconds = total;
+                }
+            }
+        }
+        catch { }
         Task.Run(async () =>
         {
             while (true)
             {
-                await Task.Delay(TimeSpan.FromSeconds(1));
+                await Task.Delay(TimeSpan.FromMinutes(1));
                 var now = DateTime.Now;
                 _totalRuntimeSeconds += (long)(now - _lastUpdateTime).TotalSeconds;
                 _lastUpdateTime = now;
@@ -106,6 +124,9 @@ class Program
         if (args.Length == 0)
         {
             UI.PrintBanner();
+            // 显示总运行时长
+            TimeSpan totalTime = TimeSpan.FromSeconds(TotalRuntimeSeconds);
+            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒");
             UpdateConsoleTitle();
             // 默认开启 2 小时闲时关机监听
             PowerManager.StartIdleMonitor(new[] { "2h" });
@@ -848,16 +869,20 @@ class Program
         {
             var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
             var json = File.ReadAllText(configPath);
-            var doc = System.Text.Json.JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            var dict = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new();
-
-            dict["TotalRuntimeSeconds"] = totalSeconds;
-
-            var newJson = System.Text.Json.JsonSerializer.Serialize(dict, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(configPath, newJson);
+            var node = JsonNode.Parse(json);
+            if (node is JsonObject obj)
+            {
+                obj["TotalRuntimeSeconds"] = totalSeconds;
+                var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+                var newJson = node.ToJsonString(options);
+                File.WriteAllText(configPath, newJson);
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            // 可选：记录错误
+            Console.WriteLine($"更新配置错误: {ex.Message}");
+        }
     }
 }
 
