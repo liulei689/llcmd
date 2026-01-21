@@ -22,6 +22,7 @@
     "Password": "xxx"
   },
   "StartMinimized": true,
+  "PresetText": "Hello World",
   "TotalRuntimeSeconds": 0
 }
 ```

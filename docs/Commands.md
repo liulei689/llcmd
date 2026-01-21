@@ -47,6 +47,9 @@
 - **encrypt [options]**: 加密。
 - **decrypt [options]**: 解密。
 - **task/dev/ctrl/set/netset/sound/disp/store/desk/tmp/recycle/snip/dnsflush/netfix**: 打开设置。
+- **min**: 最小化窗口。
+- **paste [text]**: 向当前活动窗口输入框发送文本，默认使用PresetText。
+- **全局热键**：Ctrl+Shift+V 向当前活动窗口输入预定文本。
 
 ## 添加新命令
 在 Program.Initialize() 添加 RegisterCommand。

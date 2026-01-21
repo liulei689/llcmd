@@ -4,6 +4,7 @@
 ```
 ll/
 ├── Program.cs          # 入口，配置，总时长
+├── HotkeyManager.cs    # 全局热键管理
 ├── GuardianManager.cs  # 守护模式，界面渲染
 ├── PowerManager.cs     # 关机，空闲检测
 ├── UI.cs               # 打印方法
@@ -25,6 +26,7 @@ ll/
 ├── SM4Helper.cs        # SM4
 ├── SSHConn.cs          # SSH
 ├── NativeMethods.cs    # P/Invoke
+├── ConfigManager.cs    # 配置管理器
 └── config.json         # 配置
 ```
 

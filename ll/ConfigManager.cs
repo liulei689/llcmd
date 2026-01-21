@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using LL;
+using System.Text.Json.Serialization;
 
 namespace LL;
 
@@ -83,7 +85,7 @@ public static class ConfigManager
                 obj2[keys.Last()] = JsonValue.Create(value);
             }
 
-            var options = new JsonSerializerOptions { WriteIndented = true };
+            var options = new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = JsonSerializerOptions.Default.TypeInfoResolver };
             var newJson = node.ToJsonString(options);
             File.WriteAllText(ConfigPath, newJson);
         }

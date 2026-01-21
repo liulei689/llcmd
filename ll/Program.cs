@@ -9,6 +9,8 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Collections.Generic;
 using LL.Native;
+using System.Threading;
+using System.IO;
 
 // ==================================================================================
 // LL CLI TOOL - Professional Edition
@@ -95,6 +97,9 @@ class Program
 
         // 初始化并注册
         Initialize();
+
+        // 初始化热键
+        HotkeyManager.Initialize();
         // 内部模式：仅用于按需提权执行单条命令
         if (args.Length > 1 && args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
         {
