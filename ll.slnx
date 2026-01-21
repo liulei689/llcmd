@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="ClipboardMonitor/ClipboardMonitor.csproj" />
   <Project Path="ll/ll.csproj" />
 </Solution>

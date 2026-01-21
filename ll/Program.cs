@@ -97,9 +97,19 @@ class Program
 
         // 初始化并注册
         Initialize();
-
         // 初始化热键
         HotkeyManager.Initialize();
+        // 启动剪贴板监控程序
+        try
+        {
+            string monitorPath = Path.Combine(AppContext.BaseDirectory, "..", "ClipboardMonitor", "bin", "Debug", "net10.0-windows", "ClipboardMonitor.exe");
+            Process.Start(monitorPath);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to start ClipboardMonitor: {ex.Message}");
+        }
+
         // 内部模式：仅用于按需提权执行单条命令
         if (args.Length > 1 && args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
         {
