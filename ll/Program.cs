@@ -79,6 +79,27 @@ class Program
         // Hide maximize, minimize, and close buttons
         HideConsoleButtons();
 
+        // Check for start minimized
+        bool startMinimized = true; // default
+        var configPathMin = Path.Combine(AppContext.BaseDirectory, "config.json");
+        if (File.Exists(configPathMin))
+        {
+            var configJson = File.ReadAllText(configPathMin);
+            var configDoc = System.Text.Json.JsonDocument.Parse(configJson);
+            if (configDoc.RootElement.TryGetProperty("StartMinimized", out var minProp))
+            {
+                startMinimized = minProp.GetBoolean();
+            }
+        }
+        if (startMinimized)
+        {
+            IntPtr hWndMin = LL.Native.NativeMethods.GetConsoleWindow();
+            if (hWndMin != IntPtr.Zero)
+            {
+                LL.Native.NativeMethods.ShowWindow(hWndMin, LL.Native.NativeMethods.SW_MINIMIZE);
+            }
+        }
+
         // Check for VT support
         bool supportsVT = EnableVirtualTerminalProcessing();
 

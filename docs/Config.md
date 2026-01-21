@@ -21,6 +21,7 @@
     "Username": "user@qq.com",
     "Password": "xxx"
   },
+  "StartMinimized": true,
   "TotalRuntimeSeconds": 0
 }
 ```
