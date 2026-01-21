@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using LL;
 using System.Text.Json.Serialization;
 
@@ -85,9 +87,51 @@ public static class ConfigManager
                 obj2[keys.Last()] = JsonValue.Create(value);
             }
 
-            var options = new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = JsonSerializerOptions.Default.TypeInfoResolver };
-            var newJson = node.ToJsonString(options);
-            File.WriteAllText(ConfigPath, newJson);
+            // Try using System.Text.Json first
+            try
+            {
+                var newJson = node.ToJsonString();
+                File.WriteAllText(ConfigPath, newJson);
+                return;
+            }
+            catch
+            {
+                // Fallback to Newtonsoft.Json for reliable serialization/formatting
+            }
+
+            try
+            {
+                JObject j;
+                if (File.Exists(ConfigPath))
+                {
+                    j = JObject.Parse(File.ReadAllText(ConfigPath));
+                }
+                else
+                {
+                    j = new JObject();
+                }
+
+                var parts = keyPath.Split(':');
+                JObject cur = j;
+                for (int i = 0; i < parts.Length - 1; i++)
+                {
+                    var p = parts[i];
+                    if (cur[p] == null || cur[p].Type != JTokenType.Object)
+                    {
+                        cur[p] = new JObject();
+                    }
+                    cur = (JObject)cur[p]!;
+                }
+
+                var last = parts.Last();
+                cur[last] = JToken.FromObject(value);
+                File.WriteAllText(ConfigPath, j.ToString(Formatting.Indented));
+                return;
+            }
+            catch (Exception ex2)
+            {
+                Console.WriteLine($"更新配置错误: {ex2.Message}");
+            }
         }
         catch (Exception ex)
         {
