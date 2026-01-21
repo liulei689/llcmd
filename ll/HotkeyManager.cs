@@ -3,6 +3,7 @@ using System.Text;
 using LL;
 using System.Threading;
 using System.Diagnostics;
+using LL.Native;
 
 public static class HotkeyManager
 {
@@ -63,6 +64,9 @@ public static class HotkeyManager
     [DllImport("user32.dll")]
     private static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+    [DllImport("user32.dll")]
+    private static extern bool IsIconic(IntPtr hWnd);
+
     [StructLayout(LayoutKind.Sequential)]
     private struct KEYBDINPUT
     {
@@ -118,11 +122,11 @@ public static class HotkeyManager
         _msgThread = new Thread(() =>
         {
             // Register hotkey associated with this thread (hWnd = NULL)
-            uint mods = MOD_CONTROL | MOD_ALT; // Ctrl+Alt+T
+            uint mods = MOD_ALT; // Alt
             bool ok = RegisterHotKey(IntPtr.Zero, _hotkeyId, mods, (uint)VK_T);
             if (ok)
             {
-                Console.WriteLine($"Hotkey registered: Ctrl+Alt+T (id={_hotkeyId})");
+                Console.WriteLine($"Hotkey registered: Alt+T (id={_hotkeyId})");
             }
             else
             {
@@ -139,7 +143,7 @@ public static class HotkeyManager
                 {
                     if (msg.message == WM_HOTKEY)
                     {
-                        Console.WriteLine($"WM_HOTKEY received (id={msg.wParam})");
+                       // Console.WriteLine($"WM_HOTKEY received (id={msg.wParam})");
                         try { HandleHotkey(); } catch (Exception ex) { Console.WriteLine($"Hotkey handler error: {ex}"); Debug.WriteLine($"Hotkey handler error: {ex}"); }
                     }
                     TranslateMessage(ref msg);
@@ -160,70 +164,18 @@ public static class HotkeyManager
 
     public static void HandleHotkey()
     {
-        // Try to send text to the window under mouse cursor, then to foreground window.
-        string text = _presetText ?? string.Empty;
-
-        try
+        // Toggle minimize/restore the console window
+        IntPtr hWnd = NativeMethods.GetConsoleWindow();
+        if (hWnd != IntPtr.Zero)
         {
-            if (GetCursorPos(out POINT pt))
+            if (IsIconic(hWnd))
             {
-                IntPtr target = WindowFromPoint(pt);
-                if (target != IntPtr.Zero)
-                {
-                    Console.WriteLine($"Target window under cursor: 0x{target.ToInt64():X}");
-                    if (TryFocusAndSendInput(target, text)) return;
-
-                    // try common child edit classes
-                    string[] editClasses = new[] { "Edit", "RichEdit20W", "RichEdit20A" };
-                    foreach (var cls in editClasses)
-                    {
-                        IntPtr child = FindWindowEx(target, IntPtr.Zero, cls, null);
-                        if (child != IntPtr.Zero)
-                        {
-                            Console.WriteLine($"Found child {cls}: 0x{child.ToInt64():X}");
-                            if (TryFocusAndSendInput(child, text)) return;
-                        }
-                    }
-                }
+                NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
             }
-        }
-        catch (System.Exception ex)
-        {
-            Console.WriteLine($"Target-by-cursor failed: {ex}");
-        }
-
-        // Try foreground window
-        try
-        {
-            IntPtr fg = GetForegroundWindow();
-            if (fg != IntPtr.Zero)
+            else
             {
-                Console.WriteLine($"Using foreground window: 0x{fg.ToInt64():X}");
-                if (TryFocusAndSendInput(fg, text)) return;
+                NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE);
             }
-        }
-        catch { }
-
-        // Last fallback: post WM_CHAR to the foreground window for each character
-        try
-        {
-            IntPtr fg2 = GetForegroundWindow();
-            if (fg2 != IntPtr.Zero)
-            {
-                foreach (char c in text)
-                {
-                    bool posted = PostMessage(fg2, WM_CHAR, (IntPtr)c, IntPtr.Zero);
-                    if (!posted)
-                    {
-                        Console.WriteLine($"PostMessage WM_CHAR failed for '{c}' (GetLastError={Marshal.GetLastWin32Error()})");
-                    }
-                }
-            }
-        }
-        catch (System.Exception ex)
-        {
-            Console.WriteLine($"WM_CHAR fallback failed: {ex}");
-            Debug.WriteLine($"WM_CHAR fallback failed: {ex}");
         }
     }
 
