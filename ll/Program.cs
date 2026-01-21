@@ -80,17 +80,7 @@ class Program
         HideConsoleButtons();
 
         // Check for start minimized
-        bool startMinimized = true; // default
-        var configPathMin = Path.Combine(AppContext.BaseDirectory, "config.json");
-        if (File.Exists(configPathMin))
-        {
-            var configJson = File.ReadAllText(configPathMin);
-            var configDoc = System.Text.Json.JsonDocument.Parse(configJson);
-            if (configDoc.RootElement.TryGetProperty("StartMinimized", out var minProp))
-            {
-                startMinimized = minProp.GetBoolean();
-            }
-        }
+        bool startMinimized = ConfigManager.GetValue("StartMinimized", true);
         if (startMinimized)
         {
             IntPtr hWndMin = LL.Native.NativeMethods.GetConsoleWindow();
@@ -116,17 +106,8 @@ class Program
         // 从config读取初始总运行时长
         try
         {
-            var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
-            if (File.Exists(configPath))
-            {
-                var json = File.ReadAllText(configPath);
-                var node = JsonNode.Parse(json);
-                if (node is JsonObject obj && obj["TotalRuntimeSeconds"] is JsonValue val && val.TryGetValue(out long total))
-                {
-                    _totalRuntimeSeconds = total;
-                    TotalRuntimeSeconds = total;
-                }
-            }
+            _totalRuntimeSeconds = ConfigManager.GetValue("TotalRuntimeSeconds", 0L);
+            TotalRuntimeSeconds = _totalRuntimeSeconds;
         }
         catch { }
         Task.Run(async () =>
@@ -886,24 +867,7 @@ class Program
 
     private static void UpdateConfigTotalRuntime(long totalSeconds)
     {
-        try
-        {
-            var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
-            var json = File.ReadAllText(configPath);
-            var node = JsonNode.Parse(json);
-            if (node is JsonObject obj)
-            {
-                obj["TotalRuntimeSeconds"] = totalSeconds;
-                var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
-                var newJson = node.ToJsonString(options);
-                File.WriteAllText(configPath, newJson);
-            }
-        }
-        catch (Exception ex)
-        {
-            // 可选：记录错误
-            Console.WriteLine($"更新配置错误: {ex.Message}");
-        }
+        ConfigManager.SetValue("TotalRuntimeSeconds", totalSeconds);
     }
 }
 

@@ -175,6 +175,11 @@
 ### HistoryCommands.cs
 - `static void Show(string[] args)`: 显示历史。
 
+### ConfigManager.cs
+- `static T GetValue<T>(string keyPath, T defaultValue = default)`: 读取配置值。
+- `static void SetValue(string keyPath, object value)`: 设置配置值。
+- `static JsonObject GetConfig()`: 获取整个配置对象。
+
 ## 复用建议
 - 使用 Utils.TryParseTime for 时间解析。
 - 使用 UI.Print* for 输出。
