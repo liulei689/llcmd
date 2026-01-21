@@ -11,7 +11,7 @@ public static class HotkeyManager
     private const int WM_HOTKEY = 0x0312;
     private const uint MOD_CONTROL = 0x0002;
     private const uint MOD_ALT = 0x0001;
-    private const int VK_T = 0x54; // T key
+    private const int VK_S = 0x53; // S key
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -123,10 +123,10 @@ public static class HotkeyManager
         {
             // Register hotkey associated with this thread (hWnd = NULL)
             uint mods = MOD_ALT; // Alt
-            bool ok = RegisterHotKey(IntPtr.Zero, _hotkeyId, mods, (uint)VK_T);
+            bool ok = RegisterHotKey(IntPtr.Zero, _hotkeyId, mods, (uint)VK_S);
             if (ok)
             {
-                Console.WriteLine($"Hotkey registered: Alt+T (id={_hotkeyId})");
+                Console.WriteLine($"Hotkey registered: Alt+S (id={_hotkeyId})");
             }
             else
             {
