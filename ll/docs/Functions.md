@@ -38,3 +38,9 @@
 - `static void StartListening()`: 开始监听热键。
 - `static void HandleHotkey()`: 处理热键，发送文本。
 - `static void Cleanup()`: 清理热键。
+
+### ClipboardMonitor (独立程序)
+- `static void StartMonitoring()`: 启动剪贴板监控。
+- `static void StopMonitoring()`: 停止剪贴板监控。
+- `static void OnTimerElapsed(object sender, ElapsedEventArgs e)`: 定时检查剪贴板变化。
+- `static void UpdatePresetText(string clipboardText)`: 根据剪贴板内容更新 preset.txt。
