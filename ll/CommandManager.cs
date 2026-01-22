@@ -79,8 +79,14 @@ public static class CommandManager
             return;
         }
 
-        UI.PrintError($"未知指令: '{cmd}'");
-        UI.PrintInfo("输入 'list' 查看可用指令。");
+        // 指令不存在，提供建议
+        var allCommands = _commands.Select(kv => {
+            var id = _commandToId.TryGetValue(kv.Key, out var cmdId) ? cmdId : 0;
+            var desc = kv.Value.Description;
+            return (Id: id, Name: kv.Key, Description: desc);
+        }).ToList();
+        var suggestions = SuggestionManager.GetSuggestions(raw, allCommands);
+        SuggestionManager.ShowSuggestions(raw, suggestions);
     }
 
     public static void ShowCommands()
