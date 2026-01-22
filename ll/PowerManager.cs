@@ -8,9 +8,9 @@ namespace LL;
 public static class PowerManager
 {
     // 可调参数（按需修改）
-    public static double IdleEnterSeconds { get; set; } = 3; // 空闲超过多少秒进入“空闲状态”(用于触发守护/锁屏等)
+    public static double IdleEnterSeconds { get; set; } = 3*60; // 空闲超过多少秒进入“空闲状态”(用于触发守护/锁屏等)
     public static double IdleExitSeconds { get; set; } = 1;   // 空闲低于多少秒认为恢复操作
-    public static double IdleLockSeconds { get; set; } = 5;  // 空闲达到多少秒自动锁屏
+    public static double IdleLockSeconds { get; set; } = 4*60;  // 空闲达到多少秒自动锁屏
 
     private static CancellationTokenSource? _shutdownCts;
     private static Task? _shutdownTask;
@@ -370,9 +370,9 @@ public static class PowerManager
             string cls = className.ToString();
             if (cls.Contains("LockScreen") || cls.Contains("Windows.UI.Core.CoreWindow"))
             {
-                LogManager.Log("Info", "System", $"锁屏检测: 前台窗口类名={cls}, 锁屏=true");
                 return true;
             }
+
         }
         return false;
     }
