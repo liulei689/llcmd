@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using LL.Native;
 
 namespace LL;
@@ -7,14 +8,17 @@ namespace LL;
 public static class PowerManager
 {
     // 可调参数（按需修改）
-    public static double IdleEnterSeconds { get; set; } = 1*60; // 空闲超过多少秒进入“空闲状态”(用于触发守护/锁屏等)
+    public static double IdleEnterSeconds { get; set; } = 3*60; // 空闲超过多少秒进入“空闲状态”(用于触发守护/锁屏等)
     public static double IdleExitSeconds { get; set; } = 1;   // 空闲低于多少秒认为恢复操作
-    public static double IdleLockSeconds { get; set; } = 3*60;  // 空闲达到多少秒自动锁屏
+    public static double IdleLockSeconds { get; set; } = 4*60;  // 空闲达到多少秒自动锁屏
 
     private static CancellationTokenSource? _shutdownCts;
     private static Task? _shutdownTask;
     public static DateTime? TargetTime { get; private set; }
     public static string? CurrentMode { get; private set; }
+
+    private static uint _lastIdleTime = 0;
+    private static DateTime _lastCheckTime = DateTime.Now;
 
     public static void StartShutdownSequence(string[] args)
     {
@@ -254,7 +258,7 @@ public static class PowerManager
                     if (OperatingSystem.IsWindows())
                         Program.IdleTimeDisplay = $"空闲/关机: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
                         Program.UpdateConsoleTitle();
-                    await Task.Delay(2000, token);
+                    await Task.Delay(200, token);
                 }
             }
             catch (OperationCanceledException) { }
@@ -335,9 +339,42 @@ public static class PowerManager
         lastInputInfo.cbSize = (uint)Marshal.SizeOf(lastInputInfo);
         if (NativeMethods.GetLastInputInfo(ref lastInputInfo))
         {
-            return (uint)Environment.TickCount - lastInputInfo.dwTime;
+            uint currentIdle = (uint)Environment.TickCount - lastInputInfo.dwTime;
+            var now = DateTime.Now;
+
+            if (IsScreenLocked())
+            {
+                // 锁屏状态：累加空闲时间，不重置
+                uint elapsedMs = (uint)(now - _lastCheckTime).TotalMilliseconds;
+                _lastIdleTime += elapsedMs;
+            }
+            else
+            {
+                // 非锁屏：正常计算
+                _lastIdleTime = currentIdle;
+            }
+
+            _lastCheckTime = now;
+            return _lastIdleTime;
         }
         return 0;
+    }
+
+    private static bool IsScreenLocked()
+    {
+        IntPtr hwnd = GetForegroundWindow();
+        if (hwnd != IntPtr.Zero)
+        {
+            StringBuilder className = new StringBuilder(256);
+            GetClassName(hwnd, className, className.Capacity);
+            string cls = className.ToString();
+            if (cls.Contains("LockScreen") || cls.Contains("Windows.UI.Core.CoreWindow"))
+            {
+                return true;
+            }
+
+        }
+        return false;
     }
 
     private static void PrintShutdownHelp()
@@ -357,4 +394,72 @@ public static class PowerManager
         }
         catch { }
     }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr OpenDesktop(string lpszDesktop, uint dwFlags, bool fInherit, uint dwDesiredAccess);
+
+    [DllImport("user32.dll")]
+    private static extern bool CloseDesktop(IntPtr hDesktop);
+
+    [DllImport("wtsapi32.dll", CharSet = CharSet.Auto)]
+    private static extern bool WTSQuerySessionInformation(IntPtr hServer, int sessionId, WTS_INFO_CLASS wtsInfoClass, out IntPtr ppBuffer, out int pBytesReturned);
+
+    [DllImport("wtsapi32.dll")]
+    private static extern void WTSFreeMemory(IntPtr pMemory);
+
+    private enum WTS_INFO_CLASS
+    {
+        WTSInitialProgram = 0,
+        WTSApplicationName = 1,
+        WTSWorkingDirectory = 2,
+        WTSOEMId = 3,
+        WTSSessionId = 4,
+        WTSUserName = 5,
+        WTSWinStationName = 6,
+        WTSDomainName = 7,
+        WTSConnectState = 8,
+        WTSClientBuildNumber = 9,
+        WTSClientName = 10,
+        WTSClientDirectory = 11,
+        WTSClientProductId = 12,
+        WTSClientHardwareId = 13,
+        WTSClientAddress = 14,
+        WTSClientDisplay = 15,
+        WTSClientProtocolType = 16,
+        WTSIdleTime = 17,
+        WTSLogonTime = 18,
+        WTSIncomingBytes = 19,
+        WTSOutgoingBytes = 20,
+        WTSIncomingFrames = 21,
+        WTSOutgoingFrames = 22,
+        WTSClientInfo = 23,
+        WTSSessionInfo = 24,
+        WTSSessionInfoEx = 25,
+        WTSConfigInfo = 26,
+        WTSValidationInfo = 27,
+        WTSSessionAddressV4 = 28,
+        WTSIsRemoteSession = 29
+    }
+
+    private enum WTS_CONNECTSTATE_CLASS
+    {
+        WTSActive,
+        WTSConnected,
+        WTSConnectQuery,
+        WTSShadow,
+        WTSDisconnected,
+        WTSIdle,
+        WTSListen,
+        WTSReset,
+        WTSDown,
+        WTSInit
+    }
+
+    private const uint DESKTOP_SWITCHDESKTOP = 0x0100;
 }
