@@ -254,7 +254,7 @@ public static class PowerManager
                     if (OperatingSystem.IsWindows())
                         Program.IdleTimeDisplay = $"空闲/关机: {idle:hh\\:mm\\:ss} / {threshold:hh\\:mm\\:ss}";
                         Program.UpdateConsoleTitle();
-                    await Task.Delay(2000, token);
+                    await Task.Delay(200, token);
                 }
             }
             catch (OperationCanceledException) { }
