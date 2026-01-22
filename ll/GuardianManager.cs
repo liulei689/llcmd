@@ -383,7 +383,7 @@ public static class GuardianManager
                 RenderGuardianDashboard(w, h, tick, eventLogs, memSeries, thdSeries, diskSeries);
 
                 tick++;
-                await Task.Delay(100, token);
+                await Task.Delay(2000, token);
             }
         }
         catch (OperationCanceledException) { }
