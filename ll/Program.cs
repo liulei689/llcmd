@@ -331,6 +331,9 @@ class Program
         CommandManager.RegisterCommand(54, "folder", "打开程序文件夹", _ => Process.Start("explorer.exe", AppContext.BaseDirectory));
         // lan/myip/netspeed 已在上面手动编号
 
+        CommandManager.RegisterCommand(55, "home", "回到首页", _ => ShowHome());
+
+
         // 快捷启动程序注册
         ShortcutManager.RegisterShortcut(101, "vs",     "Visual Studio", "devenv");
         ShortcutManager.RegisterShortcut(102, "vs22",   "Visual Studio 2022", @"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\devenv.exe");
@@ -963,6 +966,17 @@ class Program
         ConfigManager.SetValue("TotalRuntimeSeconds", totalSeconds, runtimePath);
         ConfigManager.SetValue("EmailSendCount", _emailSendCount, runtimePath);
         ConfigManager.SetValue("DbStoreCount", _dbStoreCount, runtimePath);
+    }
+
+    static void ShowHome()
+    {
+        UI.PrintBanner();
+        // 显示总运行时长
+        TimeSpan totalTime = TimeSpan.FromSeconds(TotalRuntimeSeconds);
+        var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
+        long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
+        string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
+        UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}");
     }
 }
 
