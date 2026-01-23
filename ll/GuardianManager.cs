@@ -96,10 +96,11 @@ public static class GuardianManager
         Console.CursorVisible = true;
         Console.Clear();
         UI.PrintSuccess("守护模式已关闭。系统转入后台静默监听。");
+        Program.ShowHome();
         Program.GuardianStartTime = null;
     }
 
-    private static void EnqueueEvent(string text)
+    public static void EnqueueEvent(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return;
 

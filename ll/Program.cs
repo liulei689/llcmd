@@ -968,7 +968,7 @@ class Program
         ConfigManager.SetValue("DbStoreCount", _dbStoreCount, runtimePath);
     }
 
-    static void ShowHome()
+   public static void ShowHome()
     {
         UI.PrintBanner();
         // 显示总运行时长
