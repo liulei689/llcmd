@@ -192,7 +192,6 @@ class Program
             launchCount++;
             DateTime now = DateTime.Now;
             ConfigManager.SetValue("LaunchCount", launchCount, runtimePath);
-            ConfigManager.SetValue("LastLaunchTime", now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
         }
         catch { }
         Task.Run(async () =>
@@ -218,6 +217,7 @@ class Program
             var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
             long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
             string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
+            ConfigManager.SetValue("LastLaunchTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
             UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}");
             UpdateConsoleTitle();
             // 默认开启 2 小时闲时关机监听
