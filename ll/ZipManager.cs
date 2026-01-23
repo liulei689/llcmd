@@ -107,11 +107,17 @@ public static class ZipManager
                 }
 
                 // 添加进度事件
+                int lastPercent = -1;
                 zip.SaveProgress += (sender, e) =>
                 {
                     if (e.EventType == ZipProgressEventType.Saving_AfterWriteEntry)
                     {
-                        UI.PrintInfo($"已压缩: {e.CurrentEntry.FileName} ({e.EntriesSaved}/{e.EntriesTotal})");
+                        int percent = (int)((double)e.EntriesSaved / e.EntriesTotal * 100);
+                        if (percent != lastPercent)
+                        {
+                            lastPercent = percent;
+                            DrawProgressBar(percent, e.EntriesSaved, e.EntriesTotal);
+                        }
                     }
                 };
 
@@ -199,5 +205,17 @@ public static class ZipManager
         {
             UI.PrintError($"解压失败: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// 绘制进度条
+    /// </summary>
+    private static void DrawProgressBar(int percent, int current, int total)
+    {
+        int barWidth = 20;
+        int filled = (int)(barWidth * percent / 100.0);
+        string bar = new string('#', filled) + new string(' ', barWidth - filled);
+        Console.Write($"\r[{bar}] {percent}% ({current}/{total})");
+        if (percent == 100) Console.WriteLine(); // 完成后换行
     }
 }
