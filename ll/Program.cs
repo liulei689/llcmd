@@ -100,25 +100,62 @@ class Program
         // 初始化热键
         HotkeyManager.Initialize();
         // 启动剪贴板监控程序
+        //try
+        //{
+        //    string monitorExeName = "ClipboardMonitor.exe";
+        //    string monitorPath = Path.Combine(AppContext.BaseDirectory, "net10.0-windows", monitorExeName);
+        //    // 检查是否已经在运行
+        //    var runningProcesses = Process.GetProcessesByName("ClipboardMonitor");
+        //    if (runningProcesses.Length == 0)
+        //    {
+        //        Process.Start(monitorPath);
+        //        Console.WriteLine("光标输入监听成功");
+        //    }
+        //    else
+        //    {
+        //        Console.WriteLine("光标输入监听成功");
+        //    }
+        //}
+        //catch (Exception ex)
+        //{
+        //    Console.WriteLine($" {ex.Message}");
+        //}
+
+        // 启动自动输入脚本
         try
         {
-            string monitorExeName = "ClipboardMonitor.exe";
-            string monitorPath = Path.Combine(AppContext.BaseDirectory, "net10.0-windows", monitorExeName);
-            // 检查是否已经在运行
-            var runningProcesses = Process.GetProcessesByName("ClipboardMonitor");
-            if (runningProcesses.Length == 0)
+            string ahkScriptPath = Path.Combine(AppContext.BaseDirectory, "tools", "自动输入.ahk");
+            if (File.Exists(ahkScriptPath))
             {
-                Process.Start(monitorPath);
-                Console.WriteLine("光标输入监听成功");
+                string ahkExePath = @"C:\Program Files\AutoHotkey\v2\AutoHotkey.exe";
+                if (!File.Exists(ahkExePath))
+                {
+                    ahkExePath = @"C:\Program Files (x86)\AutoHotkey\v2\AutoHotkey.exe";
+                }
+                if (File.Exists(ahkExePath))
+                {
+                    var psi = new ProcessStartInfo(ahkExePath, ahkScriptPath)
+                    {
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        WindowStyle = ProcessWindowStyle.Hidden
+                    };
+                    Process.Start(psi);
+                    Console.WriteLine("自动输入脚本启动成功");
+                }
+                else
+                {
+                    Console.WriteLine("AutoHotkey.exe 未找到，请确保已安装 AutoHotkey。");
+                }
             }
             else
             {
-                Console.WriteLine("光标输入监听成功");
+                Console.WriteLine("自动输入脚本文件不存在");
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($" {ex.Message}");
+            Console.WriteLine($"自动输入脚本启动失败: {ex.Message}");
         }
 
         // 内部模式：仅用于按需提权执行单条命令
