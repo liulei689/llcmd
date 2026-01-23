@@ -302,6 +302,8 @@ class Program
         CommandManager.RegisterCommand(64, "decv", "解密视频文件(.llv 到 .mp4)", args => VideoVaultCommands.Decrypt(args));
         CommandManager.RegisterCommand(65, "encf", "加密文件(生成 .llf)", args => FileVaultCommands.EncryptFile(args));
         CommandManager.RegisterCommand(66, "decf", "解密文件(.llf 到原格式)", args => FileVaultCommands.DecryptFile(args));
+        CommandManager.RegisterCommand(67, "zip", "压缩文件夹", args => ZipManager.Compress(args));
+        CommandManager.RegisterCommand(68, "unzip", "解压ZIP文件", args => ZipManager.Uncompress(args));
 
         // 开机启动管理
         CommandManager.RegisterCommand(70, "autostart", "开机启动管理", args => ManageAutoStart(args));
@@ -516,7 +518,20 @@ class Program
             Console.Write(input.ToString());
             // Calculate display width up to cursor for accurate cursor positioning with wide characters
             int displayWidthToCursor = GetDisplayWidth(input.ToString().AsSpan(0, cursor));
-            Console.SetCursorPosition(visiblePromptLen + displayWidthToCursor, Console.CursorTop);
+            try
+            {
+                int cursorLeft = visiblePromptLen + displayWidthToCursor;
+                if (cursorLeft >= Console.WindowWidth)
+                {
+                    cursorLeft = Console.WindowWidth - 1;
+                }
+                Console.SetCursorPosition(cursorLeft, Console.CursorTop);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                // 如果仍出错，设置到窗口末尾
+                Console.SetCursorPosition(Console.WindowWidth - 1, Console.CursorTop);
+            }
         }
     }
 
