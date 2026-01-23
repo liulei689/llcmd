@@ -278,6 +278,7 @@ class Program
         CommandManager.RegisterCommand(51, "snip", "截图工具", _ => QuickCommands.OpenSnippingTool());
         CommandManager.RegisterCommand(52, "dnsflush", "清 DNS 缓存", _ => QuickCommands.FlushDns());
         CommandManager.RegisterCommand(53, "netfix", "网络修复", _ => QuickCommands.NetFix());
+        CommandManager.RegisterCommand(54, "folder", "打开程序文件夹", _ => Process.Start("explorer.exe", AppContext.BaseDirectory));
         // lan/myip/netspeed 已在上面手动编号
 
         // 快捷启动程序注册
