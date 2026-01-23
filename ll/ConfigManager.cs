@@ -17,13 +17,15 @@ public static class ConfigManager
     /// <typeparam name="T">值类型</typeparam>
     /// <param name="keyPath">键路径，如 "Database:Username"</param>
     /// <param name="defaultValue">默认值</param>
+    /// <param name="path">配置文件路径，默认为 config.json</param>
     /// <returns>配置值</returns>
-    public static T GetValue<T>(string keyPath, T defaultValue = default)
+    public static T GetValue<T>(string keyPath, T defaultValue = default, string? path = null)
     {
+        string filePath = path ?? ConfigPath;
         try
         {
-            if (!File.Exists(ConfigPath)) return defaultValue;
-            var json = File.ReadAllText(ConfigPath);
+            if (!File.Exists(filePath)) return defaultValue;
+            var json = File.ReadAllText(filePath);
             var node = JsonNode.Parse(json);
             var keys = keyPath.Split(':');
             JsonNode current = node;
@@ -52,14 +54,16 @@ public static class ConfigManager
     /// </summary>
     /// <param name="keyPath">键路径，如 "Database:Username"</param>
     /// <param name="value">新值</param>
-    public static void SetValue(string keyPath, object value)
+    /// <param name="path">配置文件路径，默认为 config.json</param>
+    public static void SetValue(string keyPath, object value, string? path = null)
     {
+        string filePath = path ?? ConfigPath;
         try
         {
             JsonNode node;
-            if (File.Exists(ConfigPath))
+            if (File.Exists(filePath))
             {
-                var json = File.ReadAllText(ConfigPath);
+                var json = File.ReadAllText(filePath);
                 node = JsonNode.Parse(json);
             }
             else
@@ -91,7 +95,7 @@ public static class ConfigManager
             try
             {
                 var newJson = node.ToJsonString();
-                File.WriteAllText(ConfigPath, newJson);
+                File.WriteAllText(filePath, newJson);
                 return;
             }
             catch
@@ -102,9 +106,9 @@ public static class ConfigManager
             try
             {
                 JObject j;
-                if (File.Exists(ConfigPath))
+                if (File.Exists(filePath))
                 {
-                    j = JObject.Parse(File.ReadAllText(ConfigPath));
+                    j = JObject.Parse(File.ReadAllText(filePath));
                 }
                 else
                 {
@@ -125,7 +129,7 @@ public static class ConfigManager
 
                 var last = parts.Last();
                 cur[last] = JToken.FromObject(value);
-                File.WriteAllText(ConfigPath, j.ToString(Formatting.Indented));
+                File.WriteAllText(filePath, j.ToString(Formatting.Indented));
                 return;
             }
             catch (Exception ex2)

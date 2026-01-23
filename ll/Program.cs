@@ -129,10 +129,10 @@ class Program
         }
         // 启动后台任务，每分钟更新总运行时长
         _lastUpdateTime = DateTime.Now;
-        // 从config读取初始总运行时长
+        // 从runtime.json读取初始总运行时长
         try
         {
-            _totalRuntimeSeconds = ConfigManager.GetValue("TotalRuntimeSeconds", 0L);
+            _totalRuntimeSeconds = ConfigManager.GetValue("TotalRuntimeSeconds", 0L, Path.Combine(AppContext.BaseDirectory, "runtime.json"));
             TotalRuntimeSeconds = _totalRuntimeSeconds;
         }
         catch { }
@@ -893,7 +893,7 @@ class Program
 
     private static void UpdateConfigTotalRuntime(long totalSeconds)
     {
-        ConfigManager.SetValue("TotalRuntimeSeconds", totalSeconds);
+        ConfigManager.SetValue("TotalRuntimeSeconds", totalSeconds, Path.Combine(AppContext.BaseDirectory, "runtime.json"));
     }
 }
 
