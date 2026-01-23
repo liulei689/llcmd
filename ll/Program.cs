@@ -132,8 +132,20 @@ class Program
         // 从runtime.json读取初始总运行时长
         try
         {
-            _totalRuntimeSeconds = ConfigManager.GetValue("TotalRuntimeSeconds", 0L, Path.Combine(AppContext.BaseDirectory, "runtime.json"));
+            var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
+            _totalRuntimeSeconds = ConfigManager.GetValue("TotalRuntimeSeconds", 0L, runtimePath);
             TotalRuntimeSeconds = _totalRuntimeSeconds;
+
+            // 读取启动次数和上次启动时间
+            long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
+            string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
+            DateTime lastLaunchTime = string.IsNullOrEmpty(lastLaunchTimeStr) ? DateTime.MinValue : DateTime.Parse(lastLaunchTimeStr);
+
+            // 累加启动次数，更新上次启动时间
+            launchCount++;
+            DateTime now = DateTime.Now;
+            ConfigManager.SetValue("LaunchCount", launchCount, runtimePath);
+            ConfigManager.SetValue("LastLaunchTime", now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
         }
         catch { }
         Task.Run(async () =>
@@ -154,7 +166,10 @@ class Program
             UI.PrintBanner();
             // 显示总运行时长
             TimeSpan totalTime = TimeSpan.FromSeconds(TotalRuntimeSeconds);
-            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒");
+            var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
+            long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
+            string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
+            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}");
             UpdateConsoleTitle();
             // 默认开启 2 小时闲时关机监听
             PowerManager.StartIdleMonitor(new[] { "2h" });
