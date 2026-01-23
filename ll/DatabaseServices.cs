@@ -80,6 +80,7 @@ public static class LogManager
         };
 
         LogChannel.Writer.TryWrite(entry);
+        Program._dbStoreCount++;
     }
 
     private static async Task ProcessLogs()

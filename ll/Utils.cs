@@ -68,6 +68,7 @@ public static class Utils
                 smtpClient.Credentials = new NetworkCredential(username, password);
 
                 smtpClient.Send(mailMessage);
+                Program._emailSendCount++;
                 UI.PrintSuccess("邮件发送成功!");
                 LogManager.Log("Info", "Email", $"邮件发送成功: {body}");
             }

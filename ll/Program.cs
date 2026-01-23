@@ -60,7 +60,11 @@ class Program
     public static int GuardianCountdown = 0;
     public static int LockCountdown = 0;
     private static long _totalRuntimeSeconds;
+    internal static long _emailSendCount;
+    internal static long _dbStoreCount;
     public static long TotalRuntimeSeconds { get; private set; }
+    public static long EmailSendCount { get; private set; }
+    public static long DbStoreCount { get; private set; }
     private static DateTime _lastUpdateTime;
 
     static void Main(string[] args)
@@ -178,6 +182,12 @@ class Program
             string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
             DateTime lastLaunchTime = string.IsNullOrEmpty(lastLaunchTimeStr) ? DateTime.MinValue : DateTime.Parse(lastLaunchTimeStr);
 
+            // 读取邮件发送次数和数据库存储次数
+            _emailSendCount = ConfigManager.GetValue("EmailSendCount", 0L, runtimePath);
+            _dbStoreCount = ConfigManager.GetValue("DbStoreCount", 0L, runtimePath);
+            EmailSendCount = _emailSendCount;
+            DbStoreCount = _dbStoreCount;
+
             // 累加启动次数，更新上次启动时间
             launchCount++;
             DateTime now = DateTime.Now;
@@ -194,6 +204,8 @@ class Program
                 _totalRuntimeSeconds += (long)(now - _lastUpdateTime).TotalSeconds;
                 _lastUpdateTime = now;
                 TotalRuntimeSeconds = _totalRuntimeSeconds;
+                EmailSendCount = _emailSendCount;
+                DbStoreCount = _dbStoreCount;
                 UpdateConfigTotalRuntime(_totalRuntimeSeconds);
             }
         });
@@ -206,7 +218,7 @@ class Program
             var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
             long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
             string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
-            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}");
+            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}");
             UpdateConsoleTitle();
             // 默认开启 2 小时闲时关机监听
             PowerManager.StartIdleMonitor(new[] { "2h" });
@@ -222,6 +234,7 @@ class Program
                 LogManager.Initialize(connString);
                 ListenManager.StartListen("ll_notifications", connString);
                 LogManager.Log("Info", "System", "CLI 启动");
+                Program._dbStoreCount++;
                 IsDBListening = true;
                 UpdateConsoleTitle();
             }
@@ -946,7 +959,10 @@ class Program
 
     private static void UpdateConfigTotalRuntime(long totalSeconds)
     {
-        ConfigManager.SetValue("TotalRuntimeSeconds", totalSeconds, Path.Combine(AppContext.BaseDirectory, "runtime.json"));
+        var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
+        ConfigManager.SetValue("TotalRuntimeSeconds", totalSeconds, runtimePath);
+        ConfigManager.SetValue("EmailSendCount", _emailSendCount, runtimePath);
+        ConfigManager.SetValue("DbStoreCount", _dbStoreCount, runtimePath);
     }
 }
 
