@@ -123,10 +123,9 @@ namespace LL
             try
             {
                 using var client = new TcpClient();
-                var result = client.BeginConnect(ip, port, null, null);
-                var success = result.AsyncWaitHandle.WaitOne(500); // 5秒超时
-                client.EndConnect(result);
-                if (success)
+                var connectTask = client.ConnectAsync(ip, port);
+                var success = connectTask.Wait(1000); // 1秒超时
+                if (success && client.Connected)
                 {
                     Console.WriteLine(" \u001b[32m成功\u001b[0m");
                 }
@@ -143,60 +142,85 @@ namespace LL
 
         private static async Task ScanPorts(string ip)
         {
-            UI.PrintHeader($"扫描 {ip} 的常见端口状态");
+            UI.PrintHeader($"扫描 {ip} 的常见端口状态 (按 C 键取消)");
             int total = CommonPorts.Count;
             int completed = 0;
             using var cts = new CancellationTokenSource();
+            TaskManager.Register($"端口扫描({ip})", cts);
             var token = cts.Token;
 
-            foreach (var (port, service) in CommonPorts)
+            // 启动监听C键线程
+            var cancelThread = new Thread(() =>
             {
-                if (token.IsCancellationRequested)
+                while (!token.IsCancellationRequested)
                 {
-                    UI.PrintInfo("端口扫描已取消。");
-                    return;
-                }
-
-                completed++;
-                bool detecting = true;
-                string dots = ".";
-                var animationTask = Task.Run(async () =>
-                {
-                    while (detecting && !token.IsCancellationRequested)
+                    if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.C)
                     {
-                        Console.Write($"\r[{completed}/{total}] 扫描 {service} ({port}){dots}");
-                        dots = dots.Length < 3 ? dots + "." : ".";
-                        await Task.Delay(200);
+                        cts.Cancel();
+                        break;
                     }
-                }, token);
-
-                try
-                {
-                    using var client = new TcpClient();
-                    var connectTask = client.ConnectAsync(ip, port);
-                    var timeoutTask = Task.Delay(1000, token); // 1秒超时
-                    var completedTask = await Task.WhenAny(connectTask, timeoutTask);
-                    detecting = false;
-                    if (completedTask == connectTask)
-                    {
-                        string color = "\u001b[32m";
-                        Console.Write($"\r{color}[{completed}/{total}] {service} ({port}) 开放\u001b[0m\n");
-                    }
-                    else
-                    {
-                        string color = "\u001b[31m";
-                        Console.Write($"\r{color}[{completed}/{total}] {service} ({port}) 关闭\u001b[0m\n");
-                    }
+                    Thread.Sleep(100);
                 }
-                catch
-                {
-                    detecting = false;
-                    Console.Write($"\r\u001b[31m[{completed}/{total}] {service} ({port}) 错误\u001b[0m\n");
-                }
+            });
+            cancelThread.IsBackground = true;
+            cancelThread.Start();
 
-                await animationTask;
+            try
+            {
+                foreach (var (port, service) in CommonPorts)
+                {
+                    if (token.IsCancellationRequested)
+                    {
+                        UI.PrintInfo("端口扫描已取消。");
+                        return;
+                    }
+
+                    completed++;
+                    bool detecting = true;
+                    string dots = ".";
+                    var animationTask = Task.Run(async () =>
+                    {
+                        while (detecting && !token.IsCancellationRequested)
+                        {
+                            Console.Write($"\r[{completed}/{total}] 扫描 {service} ({port}){dots}");
+                            dots = dots.Length < 3 ? dots + "." : ".";
+                            await Task.Delay(200);
+                        }
+                    }, token);
+
+                    try
+                    {
+                        using var client = new TcpClient();
+                        var connectTask = client.ConnectAsync(ip, port);
+                        var timeoutTask = Task.Delay(1000, token); // 1秒超时
+                        var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+                        detecting = false;
+                        if (completedTask == connectTask)
+                        {
+                            string color = "\u001b[32m";
+                            Console.Write($"\r{color}[{completed}/{total}] {service} ({port}) 开放\u001b[0m\n");
+                        }
+                        else
+                        {
+                            string color = "\u001b[31m";
+                            Console.Write($"\r{color}[{completed}/{total}] {service} ({port}) 关闭\u001b[0m\n");
+                        }
+                    }
+                    catch
+                    {
+                        detecting = false;
+                        Console.Write($"\r\u001b[31m[{completed}/{total}] {service} ({port}) 错误\u001b[0m\n");
+                    }
+
+                    await animationTask;
+                }
+                UI.PrintSuccess("端口扫描完成。");
             }
-            UI.PrintSuccess("端口扫描完成。");
+            finally
+            {
+                TaskManager.Clear(cts);
+                cancelThread.Join(200);
+            }
         }
     }
 }
