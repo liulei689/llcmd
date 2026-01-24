@@ -101,9 +101,16 @@ class Program
 
         // 初始化并注册
         Initialize();
+
+        // 内部模式：仅用于按需提权执行单条命令
+        if (args.Length > 1 && args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
+        {
+            CommandManager.ExecuteCommand(args[1], args.Skip(2).ToArray());
+            return;
+        }
+
         // 初始化热键
         HotkeyManager.Initialize();
-        // 启动剪贴板监控程序
         //try
         //{
         //    string monitorExeName = "ClipboardMonitor.exe";
@@ -162,12 +169,6 @@ class Program
             Console.WriteLine($"自动输入脚本启动失败: {ex.Message}");
         }
 
-        // 内部模式：仅用于按需提权执行单条命令
-        if (args.Length > 1 && args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
-        {
-            CommandManager.ExecuteCommand(args[1], args.Skip(2).ToArray());
-            return;
-        }
         // 启动后台任务，每分钟更新总运行时长
         _lastUpdateTime = DateTime.Now;
         // 从runtime.json读取初始总运行时长
