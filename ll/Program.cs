@@ -274,9 +274,6 @@ class Program
         CommandManager.RegisterCommand(17, "qr",   "生成二维码", args => QrCommands.Print(args));
         CommandManager.RegisterCommand(18, "admin", "申请管理员权限", args => ElevationCommands.Elevate(args));
         CommandManager.RegisterCommand(19, "settime", "修改系统时间", args => SystemCommands.SetTime(args));
-        CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
-
-        CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = NativeMethods.GetConsoleWindow(); NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE); });
 
         // 实用工具（扁平化：直接用命令名，不用 util 前缀）
         CommandManager.RegisterCommand(20, "ps", "进程列表", args => UtilityCommands.Execute(["ps", ..args]));
@@ -294,6 +291,26 @@ class Program
         CommandManager.RegisterCommand(31, "hist", "历史记录", args => HistoryCommands.Show(args));
 
         CommandManager.RegisterCommand(32, "loc", "统计目录代码行数", args => CodeStatsCommands.Run(args));
+
+        // 常用快捷操作（面向普通用户）
+        CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
+        CommandManager.RegisterCommand(41, "dev", "设备管理器", _ => QuickCommands.OpenDeviceManager());
+        CommandManager.RegisterCommand(42, "ctrl", "控制面板", _ => QuickCommands.OpenControlPanel());
+        CommandManager.RegisterCommand(43, "set", "系统设置", _ => QuickCommands.OpenSettings());
+        CommandManager.RegisterCommand(44, "netset", "网络设置", _ => QuickCommands.OpenNetworkSettings());
+        CommandManager.RegisterCommand(45, "sound", "声音设置", _ => QuickCommands.OpenSoundSettings());
+        CommandManager.RegisterCommand(46, "disp", "显示设置", _ => QuickCommands.OpenDisplaySettings());
+        CommandManager.RegisterCommand(47, "store", "存储管理", _ => QuickCommands.OpenStorageSettings());
+        CommandManager.RegisterCommand(48, "desk", "打开桌面", _ => QuickCommands.OpenDesktopFolder());
+        CommandManager.RegisterCommand(49, "tmp", "打开临时目录", _ => QuickCommands.OpenTempFolder());
+        CommandManager.RegisterCommand(50, "recycle", "回收站", _ => QuickCommands.OpenRecycleBin());
+        CommandManager.RegisterCommand(51, "snip", "截图工具", _ => QuickCommands.OpenSnippingTool());
+        CommandManager.RegisterCommand(52, "dnsflush", "清 DNS 缓存", _ => QuickCommands.FlushDns());
+        CommandManager.RegisterCommand(53, "netfix", "网络修复", _ => QuickCommands.NetFix());
+        CommandManager.RegisterCommand(54, "folder", "打开程序文件夹", _ => Process.Start("explorer.exe", AppContext.BaseDirectory));
+        // lan/myip/netspeed 已在上面手动编号
+
+        CommandManager.RegisterCommand(55, "home", "回到首页", _ => ShowHome());
 
         CommandManager.RegisterCommand(60, "encv", "加密视频文件(生成 .llv)", args => VideoVaultCommands.Encrypt(args));
         CommandManager.RegisterCommand(61, "playv", "播放加密视频(.llv)", args => VideoVaultCommands.Play(args));
@@ -315,26 +332,9 @@ class Program
 
         CommandManager.RegisterCommand(80, "encrypt", "加密", args => EncryptCommand(args));
         CommandManager.RegisterCommand(81, "decrypt", "解密", args => DecryptCommand(args));
-        // 常用快捷操作（面向普通用户）
-        CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
-        CommandManager.RegisterCommand(41, "dev", "设备管理器", _ => QuickCommands.OpenDeviceManager());
-        CommandManager.RegisterCommand(42, "ctrl", "控制面板", _ => QuickCommands.OpenControlPanel());
-        CommandManager.RegisterCommand(43, "set", "系统设置", _ => QuickCommands.OpenSettings());
-        CommandManager.RegisterCommand(44, "netset", "网络设置", _ => QuickCommands.OpenNetworkSettings());
-        CommandManager.RegisterCommand(45, "sound", "声音设置", _ => QuickCommands.OpenSoundSettings());
-        CommandManager.RegisterCommand(46, "disp", "显示设置", _ => QuickCommands.OpenDisplaySettings());
-        CommandManager.RegisterCommand(47, "store", "存储管理", _ => QuickCommands.OpenStorageSettings());
-        CommandManager.RegisterCommand(48, "desk", "打开桌面", _ => QuickCommands.OpenDesktopFolder());
-        CommandManager.RegisterCommand(49, "tmp", "打开临时目录", _ => QuickCommands.OpenTempFolder());
-        CommandManager.RegisterCommand(50, "recycle", "回收站", _ => QuickCommands.OpenRecycleBin());
-        CommandManager.RegisterCommand(51, "snip", "截图工具", _ => QuickCommands.OpenSnippingTool());
-        CommandManager.RegisterCommand(52, "dnsflush", "清 DNS 缓存", _ => QuickCommands.FlushDns());
-        CommandManager.RegisterCommand(53, "netfix", "网络修复", _ => QuickCommands.NetFix());
-        CommandManager.RegisterCommand(54, "folder", "打开程序文件夹", _ => Process.Start("explorer.exe", AppContext.BaseDirectory));
-        // lan/myip/netspeed 已在上面手动编号
 
-        CommandManager.RegisterCommand(55, "home", "回到首页", _ => ShowHome());
-
+        CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
+        CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = NativeMethods.GetConsoleWindow(); NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE); });
 
         // 快捷启动程序注册
         ShortcutManager.RegisterShortcut(101, "vs",     "Visual Studio", "devenv");
