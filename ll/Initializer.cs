@@ -69,7 +69,7 @@ namespace LL
             CommandManager.RegisterCommand(54, "folder", "打开程序文件夹", _ => Process.Start("explorer.exe", AppContext.BaseDirectory));
 
             CommandManager.RegisterCommand(55, "home", "回到首页", _ => Program.ShowHome());
-
+            CommandManager.RegisterCommand(56, "net", "网络控制", args => NetworkCommands.ControlNetwork(args));
             CommandManager.RegisterCommand(60, "encv", "加密视频文件(生成 .llv)", args => VideoVaultCommands.Encrypt(args));
             CommandManager.RegisterCommand(61, "playv", "播放加密视频(.llv)", args => VideoVaultCommands.Play(args));
             CommandManager.RegisterCommand(62, "lsv", "列出加密视频(.llv)", args => VideoVaultCommands.List(args));

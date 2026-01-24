@@ -113,11 +113,11 @@ class Program
         //    if (runningProcesses.Length == 0)
         //    {
         //        Process.Start(monitorPath);
-        //        Console.WriteLine("光标输入监听成功");
+        //        Console.WriteLine("光标输入监控成功");
         //    }
         //    else
         //    {
-        //        Console.WriteLine("光标输入监听成功");
+        //        Console.WriteLine("光标输入监控成功");
         //    }
         //}
         //catch (Exception ex)
