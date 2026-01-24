@@ -273,6 +273,9 @@ class Program
 
         while (true)
         {
+            // Clear input buffer to prevent stuck from previous commands
+            while (Console.KeyAvailable) Console.ReadKey(true);
+
             // Use ANSI escape sequences if VT is supported, otherwise plain text
             string prompt = supportsVT
                 ? $"\u001b[32m{Environment.UserName}\u001b[37m@\u001b[35m{Environment.MachineName}\u001b[33m $\u001b[0m"

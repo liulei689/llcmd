@@ -1,5 +1,7 @@
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using System.Threading;
+using System;
 
 namespace LL
 {
@@ -40,7 +42,7 @@ namespace LL
         {
             if (args.Length == 0)
             {
-                UI.PrintError("用法: server check | server ping <ip> <port> | server scan <ip>");
+                UI.PrintError("用法: server check | server ping <ip> <port> | server scan <ip> | server findopen <ip> [startPort endPort]");
                 return;
             }
 
@@ -55,7 +57,7 @@ namespace LL
                 string ip = args[1];
                 if (int.TryParse(args[2], out int port))
                 {
-                    PingPort(ip, port);
+                    await PingPort(ip, port);
                 }
                 else
                 {
@@ -66,6 +68,18 @@ namespace LL
             {
                 string ip = args[1];
                 await ScanPorts(ip);
+            }
+            else if (subCommand == "findopen" && args.Length >= 2)
+            {
+                string ip = args[1];
+                int startPort = 1;
+                int endPort = 65535;
+                if (args.Length >= 4 && int.TryParse(args[2], out int s) && int.TryParse(args[3], out int e))
+                {
+                    startPort = s;
+                    endPort = e;
+                }
+                await FindOpenPorts(ip, startPort, endPort);
             }
             else
             {
@@ -117,15 +131,16 @@ namespace LL
             }
         }
 
-        private static void PingPort(string ip, int port)
+        private static async Task PingPort(string ip, int port)
         {
             Console.Write($"连接 {ip}:{port}...");
             try
             {
                 using var client = new TcpClient();
                 var connectTask = client.ConnectAsync(ip, port);
-                var success = connectTask.Wait(1000); // 1秒超时
-                if (success && client.Connected)
+                var timeoutTask = Task.Delay(1000);
+                var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+                if (completedTask == connectTask && client.Connected)
                 {
                     Console.WriteLine(" \u001b[32m成功\u001b[0m");
                 }
@@ -192,7 +207,7 @@ namespace LL
                     {
                         using var client = new TcpClient();
                         var connectTask = client.ConnectAsync(ip, port);
-                        var timeoutTask = Task.Delay(1000, token); // 1秒超时
+                        var timeoutTask = Task.Delay(3000, token); // 3秒超时
                         var completedTask = await Task.WhenAny(connectTask, timeoutTask);
                         detecting = false;
                         if (completedTask == connectTask)
@@ -215,6 +230,102 @@ namespace LL
                     await animationTask;
                 }
                 UI.PrintSuccess("端口扫描完成。");
+            }
+            finally
+            {
+                TaskManager.Clear(cts);
+                cancelThread.Join(200);
+            }
+        }
+
+        // 高性能可用端口查找
+        private static async Task FindOpenPorts(string ip, int startPort, int endPort)
+        {
+            UI.PrintHeader($"快速查找 {ip} 可用端口 [{startPort}-{endPort}] (多线程, 只输出开放, 按 C 键取消)");
+            var openPorts = new List<int>();
+            int total = endPort - startPort + 1;
+            int completed = 0;
+            int maxThreads = Math.Min(256, Environment.ProcessorCount * 32);
+            var tasks = new List<Task>();
+            var locker = new object();
+            var cts = new CancellationTokenSource();
+            TaskManager.Register($"端口查找({ip})", cts);
+            var token = cts.Token;
+
+            // 启动监听C键线程
+            var cancelThread = new Thread(() =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    if (Console.KeyAvailable && Console.ReadKey(true).Key == ConsoleKey.C)
+                    {
+                        cts.Cancel();
+                        break;
+                    }
+                    Thread.Sleep(100);
+                }
+            });
+            cancelThread.IsBackground = true;
+            cancelThread.Start();
+
+            // 启动进度更新任务
+            var progressTask = Task.Run(async () =>
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    Console.Write($"\r已扫描: {Volatile.Read(ref completed)}/{total} 开放: {openPorts.Count}");
+                    await Task.Delay(500, token);
+                }
+            }, token);
+
+            try
+            {
+                SemaphoreSlim throttler = new SemaphoreSlim(maxThreads);
+                for (int port = startPort; port <= endPort; port++)
+                {
+                    if (token.IsCancellationRequested) break;
+                    await throttler.WaitAsync(token);
+                    int p = port;
+                    var t = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                            var result = socket.BeginConnect(ip, p, null, null);
+                            var success = result.AsyncWaitHandle.WaitOne(3000);
+                            if (success)
+                            {
+                                socket.EndConnect(result);
+                                lock (locker) openPorts.Add(p);
+                                Console.WriteLine($"\n[开放] {p}");
+                            }
+                            socket.Close();
+                        }
+                        catch { }
+                        finally
+                        {
+                            Interlocked.Increment(ref completed);
+                            throttler.Release();
+                        }
+                    }, token);
+                    tasks.Add(t);
+                }
+                await Task.WhenAll(tasks);
+                cts.Cancel(); // Stop progress task
+                Console.WriteLine(); // 换行
+                if (openPorts.Count == 0)
+                {
+                    UI.PrintInfo("未发现开放端口。");
+                }
+                else
+                {
+                    openPorts.Sort();
+                    UI.PrintSuccess($"开放端口: {string.Join(", ", openPorts)}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                UI.PrintInfo("端口查找已取消。");
             }
             finally
             {
