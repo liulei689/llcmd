@@ -10,9 +10,6 @@ namespace LL
         {
             // 系统指令
             CommandManager.RegisterCommand(1,  "ls",   "指令清单", _ => Program.ShowList());
-            CommandManager.RegisterCommand(1,  "list", "指令清单", _ => Program.ShowList());
-            CommandManager.RegisterCommand(1,  "help", "查看帮助", _ => Program.ShowList());
-
             CommandManager.RegisterCommand(2,  "gd",   "守护模式", args => GuardianManager.ToggleGuardianMode(args));
             CommandManager.RegisterCommand(3,  "sd",   "倒数关机", args => PowerManager.StartShutdownSequence(args));
             CommandManager.RegisterCommand(4,  "idle", "空闲关机", args => PowerManager.StartIdleMonitor(args));
@@ -73,24 +70,25 @@ namespace LL
             CommandManager.RegisterCommand(57, "server", "服务器检测", args => ServerChecker.CheckServers(args).GetAwaiter().GetResult());
             CommandManager.RegisterCommand(58, "encoding", "检测文件或文件夹编码", args => EncodingDetector.DetectEncoding(args));
             CommandManager.RegisterCommand(60, "image", "分析图片像素和颜色", args => ImageAnalyzer.AnalyzeImage(args));
+            CommandManager.RegisterCommand(61, "readbin", "读取文件二进制内容", args => BinaryFileReader.ReadBinary(args));
 
-            CommandManager.RegisterCommand(60, "encv", "加密视频文件(生成 .llv)", args => VideoVaultCommands.Encrypt(args));
-            CommandManager.RegisterCommand(61, "playv", "播放加密视频(.llv)", args => VideoVaultCommands.Play(args));
-            CommandManager.RegisterCommand(62, "lsv", "列出加密视频(.llv)", args => VideoVaultCommands.List(args));
-            CommandManager.RegisterCommand(63, "clrv", "清理视频临时解密文件", args => VideoVaultCommands.CleanTemp(args));
-            CommandManager.RegisterCommand(64, "decv", "解密视频文件(.llv 到 .mp4)", args => VideoVaultCommands.Decrypt(args));
-            CommandManager.RegisterCommand(65, "encf", "加密文件(生成 .llf)", args => FileVaultCommands.EncryptFile(args));
-            CommandManager.RegisterCommand(66, "decf", "解密文件(.llf 到原格式)", args => FileVaultCommands.DecryptFile(args));
-            CommandManager.RegisterCommand(67, "zip", "压缩文件夹", args => ZipManager.Compress(args));
-            CommandManager.RegisterCommand(68, "unzip", "解压ZIP文件", args => ZipManager.Uncompress(args));
+            CommandManager.RegisterCommand(62, "encv", "加密视频文件(生成 .llv)", args => VideoVaultCommands.Encrypt(args));
+            CommandManager.RegisterCommand(63, "playv", "播放加密视频(.llv)", args => VideoVaultCommands.Play(args));
+            CommandManager.RegisterCommand(64, "lsv", "列出加密视频(.llv)", args => VideoVaultCommands.List(args));
+            CommandManager.RegisterCommand(65, "clrv", "清理视频临时解密文件", args => VideoVaultCommands.CleanTemp(args));
+            CommandManager.RegisterCommand(66, "decv", "解密视频文件(.llv 到 .mp4)", args => VideoVaultCommands.Decrypt(args));
+            CommandManager.RegisterCommand(67, "encf", "加密文件(生成 .llf)", args => FileVaultCommands.EncryptFile(args));
+            CommandManager.RegisterCommand(68, "decf", "解密文件(.llf 到原格式)", args => FileVaultCommands.DecryptFile(args));
+            CommandManager.RegisterCommand(69, "zip", "压缩文件夹", args => ZipManager.Compress(args));
+            CommandManager.RegisterCommand(70, "unzip", "解压ZIP文件", args => ZipManager.Uncompress(args));
 
             // 开机启动管理
-            CommandManager.RegisterCommand(70, "autostart", "开机启动管理", args => Program.ManageAutoStart(args));
+            CommandManager.RegisterCommand(71, "autostart", "开机启动管理", args => Program.ManageAutoStart(args));
 
             // PostgreSQL 监听通知
-            CommandManager.RegisterCommand(71, "listen", "监听PostgreSQL通知", args => Program.ListenPostgreSQL(args));
-            CommandManager.RegisterCommand(72, "notify", "发送PostgreSQL通知", args => Program.NotifyPostgreSQL(args));
-            CommandManager.RegisterCommand(73, "unlisten", "停止监听PostgreSQL通知", _ => Program.UnlistenPostgreSQL());
+            CommandManager.RegisterCommand(72, "listen", "监听PostgreSQL通知", args => Program.ListenPostgreSQL(args));
+            CommandManager.RegisterCommand(73, "notify", "发送PostgreSQL通知", args => Program.NotifyPostgreSQL(args));
+            CommandManager.RegisterCommand(74, "unlisten", "停止监听PostgreSQL通知", _ => Program.UnlistenPostgreSQL());
 
             CommandManager.RegisterCommand(80, "encrypt", "加密", args => Program.EncryptCommand(args));
             CommandManager.RegisterCommand(81, "decrypt", "解密", args => Program.DecryptCommand(args));
