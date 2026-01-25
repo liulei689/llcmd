@@ -72,6 +72,7 @@ namespace LL
             CommandManager.RegisterCommand(56, "net", "网络控制", args => NetworkCommands.ControlNetwork(args));
             CommandManager.RegisterCommand(57, "server", "服务器检测", args => ServerChecker.CheckServers(args).GetAwaiter().GetResult());
             CommandManager.RegisterCommand(58, "encoding", "检测文件或文件夹编码", args => EncodingDetector.DetectEncoding(args));
+            CommandManager.RegisterCommand(60, "image", "分析图片像素和颜色", args => ImageAnalyzer.AnalyzeImage(args));
 
             CommandManager.RegisterCommand(60, "encv", "加密视频文件(生成 .llv)", args => VideoVaultCommands.Encrypt(args));
             CommandManager.RegisterCommand(61, "playv", "播放加密视频(.llv)", args => VideoVaultCommands.Play(args));
