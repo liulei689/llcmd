@@ -11,6 +11,9 @@ using System.Collections.Generic;
 using LL.Native;
 using System.Threading;
 using System.IO;
+using System.Data;
+using System.Text.RegularExpressions;
+using System.Diagnostics.CodeAnalysis;
 
 // ==================================================================================
 // LL CLI TOOL - Professional Edition
@@ -193,6 +196,7 @@ class Program
             launchCount++;
             DateTime now = DateTime.Now;
             ConfigManager.SetValue("LaunchCount", launchCount, runtimePath);
+            ConfigManager.SetValue("LastLaunchTime", now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
         }
         catch { }
         Task.Run(async () =>
@@ -321,6 +325,21 @@ class Program
                 {
                     CommandManager.ExecuteCommand("decf", new[] { trimmedInput });
                     continue;
+                }
+            }
+
+            // Check if input is a math expression
+            if (Regex.IsMatch(input, @"[\+\-\*/]"))
+            {
+                try
+                {
+                    var result = new DataTable().Compute(input, null);
+                    UI.PrintInfo($"计算结果: {result}");
+                    continue;
+                }
+                catch
+                {
+                    // not a valid math expression, execute command
                 }
             }
 
