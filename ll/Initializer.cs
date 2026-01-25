@@ -92,6 +92,7 @@ namespace LL
 
             CommandManager.RegisterCommand(80, "encrypt", "加密", args => Program.EncryptCommand(args));
             CommandManager.RegisterCommand(81, "decrypt", "解密", args => Program.DecryptCommand(args));
+            CommandManager.RegisterCommand(82, "hexview", "查看Hex字符串", args => HexViewer.ViewHex(args));
 
             CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
             CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow(); LL.Native.NativeMethods.ShowWindow(hWnd, LL.Native.NativeMethods.SW_MINIMIZE); });

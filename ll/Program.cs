@@ -304,7 +304,7 @@ class Program
 
             // Auto-play .llv files or decrypt .llf files dragged into the console
             var trimmedInput = input.Trim('"');
-            if (File.Exists(trimmedInput))
+            if (File.Exists(trimmedInput) && trimmedInput.Length < 260) // limit path length
             {
                 var ext = Path.GetExtension(trimmedInput);
                 if (ext.Equals(".llv", StringComparison.OrdinalIgnoreCase))
@@ -329,11 +329,11 @@ class Program
             }
 
             // Check if input is a math expression
-            if (Regex.IsMatch(input, @"[\+\-\*/]"))
+            if (Regex.IsMatch(input, @"[\+\-\*/]") && input.Length < 100) // limit length
             {
                 try
                 {
-                    var result = new DataTable().Compute(input, null);
+                    var result = ComputeExpression(input);
                     UI.PrintInfo($"计算结果: {result}");
                     continue;
                 }
@@ -429,12 +429,15 @@ class Program
             }
 
             // Redraw the line
+            string displayText = input.Length <= Console.WindowWidth - visiblePromptLen - 10
+                ? input.ToString()
+                : "..." + input.ToString().Substring(Math.Max(0, input.Length - (Console.WindowWidth - visiblePromptLen - 13)));
             Console.SetCursorPosition(visiblePromptLen, Console.CursorTop);
             Console.Write(new string(' ', Math.Max(0, Console.WindowWidth - visiblePromptLen)));
             Console.SetCursorPosition(visiblePromptLen, Console.CursorTop);
-            Console.Write(input.ToString());
+            Console.Write(displayText);
             // Calculate display width up to cursor for accurate cursor positioning with wide characters
-            int displayWidthToCursor = GetDisplayWidth(input.ToString().AsSpan(0, cursor));
+            int displayWidthToCursor = GetDisplayWidth(displayText.AsSpan(0, Math.Min(cursor, displayText.Length)));
             try
             {
                 int cursorLeft = visiblePromptLen + displayWidthToCursor;
@@ -909,6 +912,12 @@ class Program
         long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
         string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
         UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}");
+    }
+
+    [UnconditionalSuppressMessage("IL", "IL2026")]
+    private static object ComputeExpression(string expression)
+    {
+        return new DataTable().Compute(expression, null);
     }
 }
 
