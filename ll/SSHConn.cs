@@ -83,4 +83,7 @@ public class SSHConn
         }
         UI.PrintInfo("SSH隧道已关闭。");
     }
+
+    // 添加 Client 属性
+    public SshClient? Client => _sshClient;
 }

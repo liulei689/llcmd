@@ -24,6 +24,9 @@ class Program
     // 全局默认项目路径（由 cd/proj 命令设置，供其他命令使用）
     internal static string? CurrentProjectPath;
 
+    // 共享 SSH 连接实例（用于数据库和远程命令）
+    internal static SSHConn? SharedSSHConn;
+
     // P/Invoke declarations for window manipulation
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetConsoleWindow();
@@ -358,7 +361,7 @@ class Program
     }
 
         static string? ReadLineWithEditing(string prompt)
-        {
+    {
             Console.Write(prompt);
             // Calculate visible prompt length (excluding ANSI escape sequences)
             string cleanPrompt = Regex.Replace(prompt, "\u001b\\[[0-9;]*m", string.Empty);
@@ -672,6 +675,7 @@ class Program
                     UI.PrintError("SSH隧道建立失败，无法连接数据库。");
                     return null;
                 }
+                SharedSSHConn = sshConn;
                 // 使用本地端口
                 return $"Host=127.0.0.1;Port={sshConn.LocalPort};Username={dbUser};Password={dbPass};Database={dbName};SSL Mode=Disable;Trust Server Certificate=true;";
             }
