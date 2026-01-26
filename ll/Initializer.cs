@@ -95,6 +95,7 @@ namespace LL
             CommandManager.RegisterCommand(82, "hexview", "查看Hex字符串", args => HexViewer.ViewHex(args));
             CommandManager.RegisterCommand(83, "git", "精简 Git 操作: history, info, rollback, help — 用法: git <子命令> [参数]", args => GitCommandHandler.Handle(args));
             CommandManager.RegisterCommand(84, "cd", "设置默认项目目录（后续 git 命令在该目录执行）。用法: cd <path>", args => GitCommandHandler.SetDefaultProject(args));
+            CommandManager.RegisterCommand(85, "proxy", "检测系统代理设置 (proxy check)", args => ProxyCommands.CheckProxy(args));
 
             CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
             CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow(); LL.Native.NativeMethods.ShowWindow(hWnd, LL.Native.NativeMethods.SW_MINIMIZE); });
