@@ -53,3 +53,25 @@
 
 ## 添加新命令
 在 Program.Initialize() 添加 RegisterCommand。
+
+## Git（精简）
+项目内集成了一个精简的 `git` 子命令集合，方便在交互式界面快速查看历史和回退。注意这不是完整的 git 前端，只保留了常用、安全的操作。
+
+- `git history [n]` 或 `git hist [n]`
+  - 查看最近 n 条提交，默认 10。输出为：`<hash> <author> <relative-time> <subject>`。
+  - 示例：`git history 5`
+
+- `git info`
+  - 显示仓库根目录、origin 远程地址（若存在）、当前分支与最近一次提交摘要。
+  - 示例：`git info`
+
+- `git rollback <commit> [--hard]` 或 `git rb <commit> [--hard]`
+  - 不带 `--hard`：执行 `git checkout <commit>`（进入 detached HEAD，安全查看历史或临时回退）。
+  - 带 `--hard`：执行 `git reset --hard <commit>`（危险，会丢失未提交更改，命令执行前要求交互确认）。
+  - 示例：`git rollback abc123` 或 `git rollback abc123 --hard`
+
+说明：
+- 这些命令在内部调用本机安装的 `git`（会尝试查找常见安装路径或使用 `where git`）。
+- 硬回退是破坏性操作，请在执行前确保已经备份或确认。
+
+若需要完整的 git 子命令帮助，请在系统终端使用原始 `git` 命令（本工具保留调用原生命令的能力，但交互界面仅暴露上述精简集以避免误操作）。

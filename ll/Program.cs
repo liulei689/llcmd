@@ -21,6 +21,9 @@ using System.Diagnostics.CodeAnalysis;
 
 class Program
 {
+    // 全局默认项目路径（由 cd/proj 命令设置，供其他命令使用）
+    internal static string? CurrentProjectPath;
+
     // P/Invoke declarations for window manipulation
     [DllImport("kernel32.dll")]
     private static extern IntPtr GetConsoleWindow();
@@ -281,9 +284,15 @@ class Program
             while (Console.KeyAvailable) Console.ReadKey(true);
 
             // Use ANSI escape sequences if VT is supported, otherwise plain text
+            string defaultProj = LL.GitCommandHandler.GetCurrentProjectPath();
+            string projName = null;
+            if (!string.IsNullOrEmpty(defaultProj))
+            {
+                try { projName = Path.GetFileName(defaultProj.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)); } catch { projName = defaultProj; }
+            }
             string prompt = supportsVT
-                ? $"\u001b[32m{Environment.UserName}\u001b[37m@\u001b[35m{Environment.MachineName}\u001b[33m $\u001b[0m"
-                : $"{Environment.UserName}@{Environment.MachineName} $ ";
+                ? $"\u001b[32m{Environment.UserName}\u001b[37m@\u001b[35m{Environment.MachineName}\u001b[33m {(string.IsNullOrEmpty(projName) ? "$" : $"[{projName}]") }\u001b[0m "
+                : $"{Environment.UserName}@{Environment.MachineName} {(string.IsNullOrEmpty(projName) ? "$" : $"[{projName}]")} ";
             string? input;
             try
             {
@@ -348,11 +357,12 @@ class Program
         }
     }
 
-    static string? ReadLineWithEditing(string prompt)
-    {
-        Console.Write(prompt);
-        // Calculate visible prompt length (excluding ANSI escape sequences)
-        int visiblePromptLen = prompt.Contains('\u001b') ? Environment.UserName.Length + 1 + Environment.MachineName.Length + 2 : prompt.Length; // user@host $
+        static string? ReadLineWithEditing(string prompt)
+        {
+            Console.Write(prompt);
+            // Calculate visible prompt length (excluding ANSI escape sequences)
+            string cleanPrompt = Regex.Replace(prompt, "\u001b\\[[0-9;]*m", string.Empty);
+            int visiblePromptLen = GetDisplayWidth(cleanPrompt);
         var input = new StringBuilder();
         int cursor = 0;
         string? currentHistory = null;
