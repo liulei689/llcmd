@@ -97,7 +97,7 @@ internal static class KeyCommandHandler
                 }
                 break;
             case "help":
-                UI.PrintInfo("用法: key <name> [value]  - 添加或获取密钥\n       key get <name> [123456]  - 获取密钥明文 (输入123456显示密文)\n       key list [123456]  - 列出密钥名和明文 (输入123456显示密文)\n       key del <name>  - 删除密钥");
+                UI.PrintInfo("用法: key <name> [value]  - 添加或获取密钥\n       key get <name> [123456]  - 获取密钥明文 (输入123456显示密文)\n       key list [123456]  - 列出密钥名和明文 (输入123456显示密文)\n       key del <name>  - 删除密钥\n       key interactive  - 进入交互式菜单");
                 break;
             case "del":
                 if (subArgs.Length != 1)
@@ -113,6 +113,84 @@ internal static class KeyCommandHandler
                 else
                 {
                     UI.PrintError($"密钥 '{delName}' 不存在。");
+                }
+                break;
+            case "i":
+                UI.PrintInfo("进入密钥管理交互模式。输入 'exit' 或选择 5 退出。");
+                while (true)
+                {
+                    Console.WriteLine("选项:");
+                    Console.WriteLine("1. 添加密钥");
+                    Console.WriteLine("2. 获取密钥");
+                    Console.WriteLine("3. 列出密钥");
+                    Console.WriteLine("4. 删除密钥");
+                    Console.WriteLine("5. 退出");
+                    Console.Write("选择: ");
+                    string choice = Console.ReadLine()?.Trim();
+                    if (choice == "1")
+                    {
+                        Console.Write("输入密钥名: ");
+                        string iname = Console.ReadLine()?.Trim();
+                        if (string.IsNullOrEmpty(iname)) continue;
+                        Console.Write("输入密钥值: ");
+                        string ivalue = Console.ReadLine()?.Trim();
+                        if (string.IsNullOrEmpty(ivalue)) continue;
+                        KeyManager.AddKey(iname, ivalue);
+                        UI.PrintSuccess($"密钥 '{iname}' 已添加。");
+                    }
+                    else if (choice == "2")
+                    {
+                        Console.Write("输入密钥名: ");
+                        string iname = Console.ReadLine()?.Trim();
+                        if (string.IsNullOrEmpty(iname)) continue;
+                        string ival = KeyManager.GetKey(iname);
+                        if (ival == null)
+                        {
+                            UI.PrintError($"密钥 '{iname}' 不存在。");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"密钥 '{iname}': {ival}");
+                        }
+                    }
+                    else if (choice == "3")
+                    {
+                        var ikeys = KeyManager.ListKeys();
+                        if (ikeys.Any())
+                        {
+                            Console.WriteLine("可用密钥:");
+                            foreach (var k in ikeys)
+                            {
+                                Console.WriteLine(k);
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine("无可用密钥。");
+                        }
+                    }
+                    else if (choice == "4")
+                    {
+                        Console.Write("输入要删除的密钥名: ");
+                        string iname = Console.ReadLine()?.Trim();
+                        if (string.IsNullOrEmpty(iname)) continue;
+                        if (KeyManager.RemoveKey(iname))
+                        {
+                            UI.PrintSuccess($"密钥 '{iname}' 已删除。");
+                        }
+                        else
+                        {
+                            UI.PrintError($"密钥 '{iname}' 不存在。");
+                        }
+                    }
+                    else if (choice == "5" || choice.ToLower() == "exit")
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        UI.PrintError("无效选择。");
+                    }
                 }
                 break;
             default:
