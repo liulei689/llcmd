@@ -204,38 +204,4 @@ public static class KeyManager
         }
         return true;
     }
-
-    public static string GetEncryptedKey(string name)
-    {
-        if (!_keys.Contains(name)) return null;
-        // 实时读取
-        if (!File.Exists(KeysPath)) return null;
-        try
-        {
-            var encryptedBytes = File.ReadAllBytes(KeysPath);
-            var plainBytes = SM4Helper.DecryptBytes(encryptedBytes);
-            using (var ms = new MemoryStream(plainBytes))
-            using (var reader = new BinaryReader(ms))
-            {
-                string header = reader.ReadString();
-                if (header != "llk") return null;
-                int version = reader.ReadInt32();
-                if (version != CurrentVersion) return null;
-                int count = reader.ReadInt32();
-                for (int i = 0; i < count; i++)
-                {
-                    string key = reader.ReadString();
-                    string encryptedValue = reader.ReadString();
-                    if (key == name)
-                    {
-                        return encryptedValue;
-                    }
-                }
-            }
-        }
-        catch
-        {
-        }
-        return null;
-    }
 }

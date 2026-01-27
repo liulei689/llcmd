@@ -57,37 +57,31 @@ public static class SM4Helper
 
     public static byte[] EncryptBytes(byte[] plainBytes)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
-        var engine = new SM4Engine();
-        var blockCipher = new CbcBlockCipher(engine);
-        var cipher = new PaddedBufferedBlockCipher(blockCipher, new Pkcs7Padding());
-        var keyParam = new KeyParameter(keyBytes);
-        var iv = new byte[16];
-        var ivParam = new ParametersWithIV(keyParam, iv);
-        cipher.Init(true, ivParam);
-
-        var outputBytes = new byte[cipher.GetOutputSize(plainBytes.Length)];
-        var len = cipher.ProcessBytes(plainBytes, 0, plainBytes.Length, outputBytes, 0);
-        cipher.DoFinal(outputBytes, len);
-
-        return outputBytes;
+        using (var aes = System.Security.Cryptography.Aes.Create())
+        {
+            aes.Key = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray(); // 128-bit key
+            aes.IV = new byte[16]; // Zero IV
+            aes.Mode = System.Security.Cryptography.CipherMode.CBC;
+            aes.Padding = System.Security.Cryptography.PaddingMode.PKCS7;
+            using (var encryptor = aes.CreateEncryptor())
+            {
+                return encryptor.TransformFinalBlock(plainBytes, 0, plainBytes.Length);
+            }
+        }
     }
 
     public static byte[] DecryptBytes(byte[] cipherBytes)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
-        var engine = new SM4Engine();
-        var blockCipher = new CbcBlockCipher(engine);
-        var cipher = new PaddedBufferedBlockCipher(blockCipher, new Pkcs7Padding());
-        var keyParam = new KeyParameter(keyBytes);
-        var iv = new byte[16];
-        var ivParam = new ParametersWithIV(keyParam, iv);
-        cipher.Init(false, ivParam);
-
-        var outputBytes = new byte[cipher.GetOutputSize(cipherBytes.Length)];
-        var len = cipher.ProcessBytes(cipherBytes, 0, cipherBytes.Length, outputBytes, 0);
-        var finalLen = cipher.DoFinal(outputBytes, len);
-
-        return outputBytes.AsSpan(0, len + finalLen).ToArray();
+        using (var aes = System.Security.Cryptography.Aes.Create())
+        {
+            aes.Key = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
+            aes.IV = new byte[16];
+            aes.Mode = System.Security.Cryptography.CipherMode.CBC;
+            aes.Padding = System.Security.Cryptography.PaddingMode.PKCS7;
+            using (var decryptor = aes.CreateDecryptor())
+            {
+                return decryptor.TransformFinalBlock(cipherBytes, 0, cipherBytes.Length);
+            }
+        }
     }
 }
