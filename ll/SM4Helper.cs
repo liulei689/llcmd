@@ -10,11 +10,16 @@ namespace LL;
 
 public static class SM4Helper
 {
-    private const string Key = "heyinanaizhendabizhenchou";
+    private static string _key = "";
+
+    public static void SetKey(string key)
+    {
+        _key = (key ?? "").PadRight(16, ' ').Substring(0, 16);
+    }
 
     public static string Encrypt(string plainText)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(Key).AsSpan(0, 16).ToArray(); // SM4 key is 128 bits (16 bytes)
+        var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray(); // SM4 key is 128 bits (16 bytes)
         var engine = new SM4Engine();
         var blockCipher = new CbcBlockCipher(engine);
         var cipher = new PaddedBufferedBlockCipher(blockCipher, new Pkcs7Padding());
@@ -33,7 +38,7 @@ public static class SM4Helper
 
     public static string Decrypt(string cipherText)
     {
-        var keyBytes = Encoding.UTF8.GetBytes(Key).AsSpan(0, 16).ToArray();
+        var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
         var engine = new SM4Engine();
         var blockCipher = new CbcBlockCipher(engine);
         var cipher = new PaddedBufferedBlockCipher(blockCipher, new Pkcs7Padding());
@@ -48,5 +53,41 @@ public static class SM4Helper
         var finalLen = cipher.DoFinal(outputBytes, len);
 
         return Encoding.UTF8.GetString(outputBytes, 0, len + finalLen);
+    }
+
+    public static byte[] EncryptBytes(byte[] plainBytes)
+    {
+        var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
+        var engine = new SM4Engine();
+        var blockCipher = new CbcBlockCipher(engine);
+        var cipher = new PaddedBufferedBlockCipher(blockCipher, new Pkcs7Padding());
+        var keyParam = new KeyParameter(keyBytes);
+        var iv = new byte[16];
+        var ivParam = new ParametersWithIV(keyParam, iv);
+        cipher.Init(true, ivParam);
+
+        var outputBytes = new byte[cipher.GetOutputSize(plainBytes.Length)];
+        var len = cipher.ProcessBytes(plainBytes, 0, plainBytes.Length, outputBytes, 0);
+        cipher.DoFinal(outputBytes, len);
+
+        return outputBytes;
+    }
+
+    public static byte[] DecryptBytes(byte[] cipherBytes)
+    {
+        var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
+        var engine = new SM4Engine();
+        var blockCipher = new CbcBlockCipher(engine);
+        var cipher = new PaddedBufferedBlockCipher(blockCipher, new Pkcs7Padding());
+        var keyParam = new KeyParameter(keyBytes);
+        var iv = new byte[16];
+        var ivParam = new ParametersWithIV(keyParam, iv);
+        cipher.Init(false, ivParam);
+
+        var outputBytes = new byte[cipher.GetOutputSize(cipherBytes.Length)];
+        var len = cipher.ProcessBytes(cipherBytes, 0, cipherBytes.Length, outputBytes, 0);
+        var finalLen = cipher.DoFinal(outputBytes, len);
+
+        return outputBytes.AsSpan(0, len + finalLen).ToArray();
     }
 }
