@@ -7,7 +7,7 @@ namespace LL;
 public static class KeyManager
 {
     private static readonly string KeysPath = Path.Combine(AppContext.BaseDirectory, "keys.llk");
-    private static HashSet<string> _keys = new(); // only keys
+    private static Dictionary<string, string> _keyValues = new(); // key -> encrypted value
     private static bool _isLoaded = false;
     private const int CurrentVersion = 1;
 
@@ -24,81 +24,36 @@ public static class KeyManager
             using (var reader = new BinaryReader(ms))
             {
                 string header = reader.ReadString();
-                if (header != "llk") return; // 头部不匹配，忽略
+                if (header != "llk") return;
                 int version = reader.ReadInt32();
-                if (version != CurrentVersion) return; // 版本不匹配，忽略
+                if (version != CurrentVersion) return;
                 int count = reader.ReadInt32();
                 for (int i = 0; i < count; i++)
                 {
+                    // key stored in plaintext inside the encrypted file; value is stored encrypted
                     string key = reader.ReadString();
-                    reader.ReadString(); // skip encrypted value
-                    _keys.Add(key);
+                    string encryptedValue = reader.ReadString();
+                    _keyValues[key] = encryptedValue;
                 }
             }
         }
         catch
         {
-            // 忽略加载失败
         }
         _isLoaded = true;
     }
 
     public static void SaveKeys()
     {
-        // 需要重新生成数据，从现有文件读取所有键值，加上新添加的，但复杂。
-        // 为了简单，假设添加时重新读取并添加。
-        // 但这里简化，重新生成空或从 _keys，但没有值。
-        // 实际上，SaveKeys 需要所有键值，所以需要缓存值或实时。
-        // 或许保持 Dictionary，但用户说只缓存key。
-        // 为了实现，修改为实时保存所有。
-        // 这里简化，SaveKeys 什么都不做，AddKey 时重新写文件。
-    }
-
-    public static void AddKey(string name, string value)
-    {
-        // 读取现有，添加新，保存
-        var allKeys = new Dictionary<string, string>();
-        if (File.Exists(KeysPath))
-        {
-            try
-            {
-                var encryptedBytes = File.ReadAllBytes(KeysPath);
-                var plainBytes = SM4Helper.DecryptBytes(encryptedBytes);
-                using (var ms = new MemoryStream(plainBytes))
-                using (var reader = new BinaryReader(ms))
-                {
-                    string header = reader.ReadString();
-                    if (header == "llk")
-                    {
-                        int version = reader.ReadInt32();
-                        if (version == CurrentVersion)
-                        {
-                            int count = reader.ReadInt32();
-                            for (int i = 0; i < count; i++)
-                            {
-                                string key = reader.ReadString();
-                                string encryptedValue = reader.ReadString();
-                                allKeys[key] = encryptedValue;
-                            }
-                        }
-                    }
-                }
-            }
-            catch
-            {
-            }
-        }
-        allKeys[name] = SM4Helper.Encrypt(value);
-        _keys = new HashSet<string>(allKeys.Keys);
-        // 保存
         using (var ms = new MemoryStream())
         using (var writer = new BinaryWriter(ms))
         {
             writer.Write("llk");
             writer.Write(CurrentVersion);
-            writer.Write(allKeys.Count);
-            foreach (var kvp in allKeys)
+            writer.Write(_keyValues.Count);
+            foreach (var kvp in _keyValues)
             {
+                // key kept as plaintext in the record (the whole file is encrypted on disk)
                 writer.Write(kvp.Key);
                 writer.Write(kvp.Value);
             }
@@ -108,100 +63,96 @@ public static class KeyManager
         }
     }
 
+    public static void AddKey(string name, string value)
+    {
+        // 值先使用类级别加密（密文存储），键名也在保存时加密
+        string encryptedValue = SM4Helper.Encrypt(value);
+        _keyValues[name] = encryptedValue;
+        SaveKeys();
+    }
+
     public static string GetKey(string name)
     {
-        if (!_keys.Contains(name)) return null;
-        // 实时读取
-        if (!File.Exists(KeysPath)) return null;
-        try
+        if (_keyValues.TryGetValue(name, out string encryptedValue))
         {
-            var encryptedBytes = File.ReadAllBytes(KeysPath);
-            var plainBytes = SM4Helper.DecryptBytes(encryptedBytes);
-            using (var ms = new MemoryStream(plainBytes))
-            using (var reader = new BinaryReader(ms))
-            {
-                string header = reader.ReadString();
-                if (header != "llk") return null;
-                int version = reader.ReadInt32();
-                if (version != CurrentVersion) return null;
-                int count = reader.ReadInt32();
-                for (int i = 0; i < count; i++)
-                {
-                    string key = reader.ReadString();
-                    string encryptedValue = reader.ReadString();
-                    if (key == name)
-                    {
-                        return encryptedValue;
-                    }
-                }
-            }
-        }
-        catch
-        {
+            return encryptedValue; // 返回加密的值，只有在上层传入 123456 参数时才会解密输出
         }
         return null;
     }
 
     public static IEnumerable<string> ListKeys()
     {
-        return _keys;
+        return _keyValues.Keys;
     }
 
     public static bool RemoveKey(string name)
     {
-        if (!_keys.Contains(name)) return false;
-        // 重新读取，移除，保存
-        var allKeys = new Dictionary<string, string>();
-        if (File.Exists(KeysPath))
+        if (_keyValues.Remove(name))
         {
-            try
+            SaveKeys();
+            return true;
+        }
+        return false;
+    }
+
+    public static void ImportFromCSV(string csvFile)
+    {
+        if (!File.Exists(csvFile)) return;
+        var lines = File.ReadAllLines(csvFile);
+        for (int i = 1; i < lines.Length; i++) // 跳过标题
+        {
+            var parts = lines[i].Split(',');
+            if (parts.Length >= 5)
             {
-                var encryptedBytes = File.ReadAllBytes(KeysPath);
-                var plainBytes = SM4Helper.DecryptBytes(encryptedBytes);
-                using (var ms = new MemoryStream(plainBytes))
-                using (var reader = new BinaryReader(ms))
+                string name = parts[0].Trim('"');
+                string url = parts[1].Trim('"');
+                string username = parts[2].Trim('"');
+                string password = parts[3].Trim('"');
+                string note = parts[4].Trim('"');
+                string key = $"{name}|{url}|{note}";
+                string value = $"{username}|{password}";
+                AddKey(key, value);
+            }
+        }
+    }
+
+    public static List<(string key, string username, string password)> SearchKeys(string keyword, bool reveal = false)
+    {
+        var results = new List<(string, string, string)>();
+        foreach (var kvp in _keyValues)
+        {
+            string key = kvp.Key;
+            if (key.Contains(keyword, StringComparison.OrdinalIgnoreCase)) { 
+
+                    string encryptedValue = GetKey(key);
+                if (encryptedValue != null)
                 {
-                    string header = reader.ReadString();
-                    if (header == "llk")
+                    if (reveal)
                     {
-                        int version = reader.ReadInt32();
-                        if (version == CurrentVersion)
+                        try
                         {
-                            int count = reader.ReadInt32();
-                            for (int i = 0; i < count; i++)
+                            string plainValue = SM4Helper.Decrypt(encryptedValue);
+                            var valueParts = plainValue.Split('|');
+                            if (valueParts.Length >= 2)
                             {
-                                string key = reader.ReadString();
-                                string encryptedValue = reader.ReadString();
-                                if (key != name)
-                                {
-                                    allKeys[key] = encryptedValue;
-                                }
+                                results.Add((key, valueParts[0], valueParts[1]));
                             }
+                            else results.Add((key, plainValue, string.Empty));
+                        }
+                        catch
+                        {
+                            // skip if cannot decrypt
                         }
                     }
+                    else
+                    {
+                        // not revealing: return encrypted blob in username field, leave password empty
+                        results.Add((key, encryptedValue, string.Empty));
+                    }
                 }
-            }
-            catch
-            {
+                
             }
         }
-        _keys = new HashSet<string>(allKeys.Keys);
-        // 保存
-        using (var ms = new MemoryStream())
-        using (var writer = new BinaryWriter(ms))
-        {
-            writer.Write("llk");
-            writer.Write(CurrentVersion);
-            writer.Write(allKeys.Count);
-            foreach (var kvp in allKeys)
-            {
-                writer.Write(kvp.Key);
-                writer.Write(kvp.Value);
-            }
-            var plainBytes = ms.ToArray();
-            var encrypted = SM4Helper.EncryptBytes(plainBytes);
-            File.WriteAllBytes(KeysPath, encrypted);
-        }
-        return true;
+        return results;
     }
 }

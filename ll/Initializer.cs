@@ -96,7 +96,7 @@ namespace LL
             CommandManager.RegisterCommand(83, "git", "精简 Git 操作: history, info, rollback, help — 用法: git <子命令> [参数]", args => GitCommandHandler.Handle(args));
             CommandManager.RegisterCommand(84, "cd", "设置默认项目目录（后续 git 命令在该目录执行）。用法: cd <path>", args => GitCommandHandler.SetDefaultProject(args));
             CommandManager.RegisterCommand(85, "proxy", "检测系统代理设置 (proxy check)", args => ProxyCommands.CheckProxy(args));
-            CommandManager.RegisterCommand(86, "key", "密钥管理: add <name> <value>, get <name>, list, help", args => KeyCommandHandler.Handle(args));
+            CommandManager.RegisterCommand(86, "key", "密钥管理: add <name> <value>, get <name>, list, remove <name>, import <csv_file>, search <keyword>", args => KeyCommandHandler.Handle(args));
             CommandManager.RegisterCommand(89, "ssh", "SSH 操作: exec <cmd>, shell, upload <local> <remote>, download <remote> <local>, status", args => RemoteCommands.HandleSSH(args));
             CommandManager.RegisterCommand(90, "eventlog", "查看 Windows 事件日志 (eventlog [filter|open])", args => EventLogViewer.ViewEventLog(args));
             CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));

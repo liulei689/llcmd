@@ -17,8 +17,28 @@ public static class SM4Helper
         _key = (key ?? "").PadRight(16, ' ').Substring(0, 16);
     }
 
+    // 延迟从配置读取密钥（如果未通过 SetKey 设置）
+    private static void EnsureKeyLoaded()
+    {
+        if (!string.IsNullOrEmpty(_key)) return;
+        try
+        {
+            // 使用项目中的 ConfigManager 读取配置项 SM4Key
+            var cfgKey = ConfigManager.GetValue("SM4Key", "");
+            if (!string.IsNullOrEmpty(cfgKey))
+            {
+                SetKey(cfgKey);
+            }
+        }
+        catch
+        {
+            // 忽略读取失败，保持默认空密钥
+        }
+    }
+
     public static string Encrypt(string plainText)
     {
+        EnsureKeyLoaded();
         var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray(); // SM4 key is 128 bits (16 bytes)
         var engine = new SM4Engine();
         var blockCipher = new CbcBlockCipher(engine);
@@ -38,6 +58,7 @@ public static class SM4Helper
 
     public static string Decrypt(string cipherText)
     {
+        EnsureKeyLoaded();
         var keyBytes = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
         var engine = new SM4Engine();
         var blockCipher = new CbcBlockCipher(engine);
@@ -57,6 +78,7 @@ public static class SM4Helper
 
     public static byte[] EncryptBytes(byte[] plainBytes)
     {
+        EnsureKeyLoaded();
         using (var aes = System.Security.Cryptography.Aes.Create())
         {
             aes.Key = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray(); // 128-bit key
@@ -72,6 +94,7 @@ public static class SM4Helper
 
     public static byte[] DecryptBytes(byte[] cipherBytes)
     {
+        EnsureKeyLoaded();
         using (var aes = System.Security.Cryptography.Aes.Create())
         {
             aes.Key = Encoding.UTF8.GetBytes(_key).AsSpan(0, 16).ToArray();
