@@ -99,6 +99,7 @@ namespace LL
             CommandManager.RegisterCommand(86, "key", "密钥管理: add <name> <value>, get <name>, list, remove <name>, import <csv_file>, search <keyword>", args => KeyCommandHandler.Handle(args));
             CommandManager.RegisterCommand(89, "ssh", "SSH 操作: exec <cmd>, shell, upload <local> <remote>, download <remote> <local>, status", args => RemoteCommands.HandleSSH(args));
             CommandManager.RegisterCommand(90, "eventlog", "查看 Windows 事件日志 (eventlog [filter|open])", args => EventLogViewer.ViewEventLog(args));
+            CommandManager.RegisterCommand(91, "sync", "文件夹同步: sync <source> <target> 或 sync stop", args => SyncManager.HandleSync(args));
             CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
             CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow(); LL.Native.NativeMethods.ShowWindow(hWnd, LL.Native.NativeMethods.SW_MINIMIZE); });
 
