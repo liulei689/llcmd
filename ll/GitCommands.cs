@@ -182,7 +182,7 @@ namespace LL
             switch (subCommand)
             {
                 case "history":
-                case "hist":
+                case "his":
                     {
                         int n = 10;
                         if (subArgs.Length > 0 && int.TryParse(subArgs[0], out int parsed)) n = parsed;
@@ -280,6 +280,27 @@ namespace LL
                 case "help":
                     UI.PrintInfo("用法: git history [n]  - 查看最近 n 条提交（默认10）\n       git rollback <commit> [--hard]  - 回退到指定提交（--hard 需确认）");
                     break;
+                case "version":
+                case "ver":
+                    {
+                        string gitPath = FindGitPath();
+                        if (gitPath == null)
+                        {
+                            UI.PrintError("未找到 Git 安装路径。");
+                            break;
+                        }
+                        string version = RunGitCommandWithOutput("--version").Trim();
+                        if (version.StartsWith("ERROR:"))
+                        {
+                            UI.PrintError(version.Substring(6).Trim());
+                        }
+                        else
+                        {
+                            Console.WriteLine($"Git 路径: {gitPath}");
+                            Console.WriteLine($"Git 版本: {version}");
+                        }
+                        break;
+                    }
                 default:
                     UI.PrintError($"未知子命令: {subCommand}");
                     UI.PrintInfo("可用子命令: history, info, rollback, help — 用法: git <子命令> [参数]");
@@ -474,4 +495,4 @@ namespace LL
             RunGitCommand($"blame {string.Join(" ", args)}");
         }
     }
-} 
+}
