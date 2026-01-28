@@ -232,6 +232,8 @@ public static class InputStats
         }
     }
 
+    private static uint _lastMouseButtons = 0;
+
     private static void ProcessRawInput(IntPtr lParam)
     {
         uint dwSize = 0;
@@ -246,18 +248,15 @@ public static class InputStats
                 RAWINPUT raw = Marshal.PtrToStructure<RAWINPUT>(pData);
                 if (raw.header.dwType == RIM_TYPEMOUSE)
                 {
-                    Console.WriteLine($"Mouse button flags: {raw.data.mouse.usButtonFlags:X}");
-                    if ((raw.data.mouse.usButtonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0 ||
-                        (raw.data.mouse.usButtonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) != 0 ||
-                        (raw.data.mouse.usButtonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0)
+                    if (raw.data.mouse.ulButtons != 0 && _lastMouseButtons == 0) // 只在从无按下到有按下时计数
                     {
                         Interlocked.Increment(ref _mouseClickCount);
                         Interlocked.Increment(ref _sessionMouseClickCount);
                     }
+                    _lastMouseButtons = raw.data.mouse.ulButtons;
                 }
                 else if (raw.header.dwType == RIM_TYPEKEYBOARD)
                 {
-                    Console.WriteLine($"Keyboard flags: {raw.data.keyboard.Flags:X}");
                     if (raw.data.keyboard.Flags == 0) // Key down
                     {
                         Interlocked.Increment(ref _keyboardPressCount);
