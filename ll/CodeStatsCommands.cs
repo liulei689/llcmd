@@ -1,5 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace LL;
 
@@ -58,7 +61,8 @@ public static class CodeStatsCommands
         int MaxDegree,
         string[] Extensions,
         bool IncludeHidden,
-        bool IncludeBinObj);
+        bool IncludeBinObj,
+        bool AnalyzeQuality);
 
     private sealed class Stats
     {
@@ -108,6 +112,33 @@ public static class CodeStatsCommands
 
     private readonly record struct FileStats(long TotalLines, long BlankLines, long CommentLines, long CodeLines, long Bytes, string Language);
 
+    private sealed class QualityStats
+    {
+        public long TotalComplexity;
+        public long MethodsAnalyzed;
+        public long LongMethods; // > 30 lines
+        public long HighComplexityMethods; // complexity > 10
+        public long VeryHighComplexityMethods; // complexity > 20
+        public long NestedMethods; // methods with deep nesting
+        public long TotalLinesInMethods;
+        public long DuplicateCodeBlocks; // placeholder
+        public ConcurrentDictionary<string, MethodQuality> Methods { get; } = new();
+
+        public void AddMethod(string file, string method, int complexity, int lines, int nesting)
+        {
+            Interlocked.Increment(ref MethodsAnalyzed);
+            Interlocked.Add(ref TotalComplexity, complexity);
+            Interlocked.Add(ref TotalLinesInMethods, lines);
+            if (lines > 30) Interlocked.Increment(ref LongMethods);
+            if (complexity > 10) Interlocked.Increment(ref HighComplexityMethods);
+            if (complexity > 20) Interlocked.Increment(ref VeryHighComplexityMethods);
+            if (nesting > 3) Interlocked.Increment(ref NestedMethods);
+            Methods.TryAdd($"{file}:{method}", new MethodQuality(complexity, lines, nesting));
+        }
+    }
+
+    private sealed record MethodQuality(int Complexity, int Lines, int Nesting);
+
     public static void Run(string[] args)
     {
         if (args.Length > 0 && (args[0] is "help" or "?" or "-h" or "--help"))
@@ -155,10 +186,11 @@ public static class CodeStatsCommands
     private static void RunInternal(Options opt, CancellationToken token)
     {
         var stats = new Stats();
+        var qualityStats = opt.AnalyzeQuality ? new QualityStats() : null;
         var sw = Stopwatch.StartNew();
 
         var startTop = Console.CursorTop;
-        const int reservedLines = 30;
+        const int reservedLines = 60; // 进一步增加以容纳更多内容
         ReserveScreenArea(reservedLines);
 
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(opt.RefreshMs));
@@ -191,6 +223,10 @@ public static class CodeStatsCommands
                     {
                         var s = AnalyzeFile(file);
                         stats.Add(s);
+                        if (opt.AnalyzeQuality && s.Language == "C#")
+                        {
+                            AnalyzeQuality(file, qualityStats);
+                        }
                     }
                     catch
                     {
@@ -207,7 +243,7 @@ public static class CodeStatsCommands
         bool completed = false;
         while (!completed && !token.IsCancellationRequested)
         {
-            WriteLive(stats, sw, startTop, completed: false, reservedLines);
+            WriteLive(stats, sw, startTop, completed: false, reservedLines, qualityStats);
 
             var tick = timer.WaitForNextTickAsync(token);
             var all = Task.WhenAll(consumers.Append(producer));
@@ -220,7 +256,7 @@ public static class CodeStatsCommands
         try { Task.WhenAll(consumers.Append(producer)).GetAwaiter().GetResult(); }
         catch (OperationCanceledException) { }
         catch (AggregateException ae) when (ae.InnerExceptions.All(e => e is OperationCanceledException)) { }
-        WriteLive(stats, sw, startTop, completed: true, reservedLines);
+        WriteLive(stats, sw, startTop, completed: true, reservedLines, qualityStats);
         // Print completion message right after the live dashboard (no extra blank area).
         Console.SetCursorPosition(0, startTop + reservedLines - 1);
         Console.Write(new string(' ', Math.Max(0, Console.BufferWidth - 1)));
@@ -229,7 +265,7 @@ public static class CodeStatsCommands
         Console.SetCursorPosition(0, startTop + reservedLines);
     }
 
-    private static void WriteLive(Stats stats, Stopwatch sw, int startTop, bool completed, int reservedLines)
+    private static void WriteLive(Stats stats, Stopwatch sw, int startTop, bool completed, int reservedLines, QualityStats? qualityStats = null)
     {
         ClearRegion(startTop, reservedLines);
 
@@ -319,6 +355,89 @@ public static class CodeStatsCommands
         int padFiles = Math.Max(0, 5 - topFiles.Length);
         for (int i = 0; i < padFiles; i++)
             WriteTopFileRow(string.Empty, string.Empty, string.Empty, string.Empty);
+
+        // Code Quality Report
+        if (qualityStats != null)
+        {
+            Console.WriteLine();
+            Console.WriteLine("代码质量分析报告 (C# 方法):");
+            var methods = Interlocked.Read(ref qualityStats.MethodsAnalyzed);
+            var totalComp = Interlocked.Read(ref qualityStats.TotalComplexity);
+            var totalLines = Interlocked.Read(ref qualityStats.TotalLinesInMethods);
+            var longMethods = Interlocked.Read(ref qualityStats.LongMethods);
+            var highComp = Interlocked.Read(ref qualityStats.HighComplexityMethods);
+            var veryHighComp = Interlocked.Read(ref qualityStats.VeryHighComplexityMethods);
+            var nested = Interlocked.Read(ref qualityStats.NestedMethods);
+            double avgComp = methods > 0 ? (double)totalComp / methods : 0;
+            double avgLines = methods > 0 ? (double)totalLines / methods : 0;
+            double longMethodRate = methods > 0 ? (double)longMethods / methods : 0;
+            double highCompRate = methods > 0 ? (double)highComp / methods : 0;
+            double nestedRate = methods > 0 ? (double)nested / methods : 0;
+
+            Console.WriteLine($"[统计] 总计分析了 {methods:n0} 个方法");
+            Console.WriteLine($"[复杂度] 平均复杂度: {avgComp:F1} (建议 < 10，过高表示逻辑复杂，易出错)");
+            Console.WriteLine($"[长度] 平均方法长度: {avgLines:F1} 行 (建议 < 30 行，太长不易维护)");
+            Console.WriteLine($"[长方法] (>30 行): {longMethods:n0} 个 ({longMethodRate:P1}，长方法应拆分)");
+            Console.WriteLine($"[高复杂度] (>10): {highComp:n0} 个 ({highCompRate:P1}，复杂方法需重构)");
+            Console.WriteLine($"[超高复杂度] (>20): {veryHighComp:n0} 个 (严重问题，立即重构)");
+            Console.WriteLine($"[深度嵌套] (>3 层): {nested:n0} 个 ({nestedRate:P1}，嵌套深影响可读性)");
+
+            // Quality Score and Rating
+            double qualityScore = 100 - (longMethodRate * 20 + highCompRate * 30 + nestedRate * 10);
+            qualityScore = Math.Max(0, Math.Min(100, qualityScore));
+            string rating;
+            string advice;
+            if (qualityScore >= 90)
+            {
+                rating = "优秀";
+                advice = "代码质量很高，继续保持！";
+            }
+            else if (qualityScore >= 70)
+            {
+                rating = "良好";
+                advice = "代码质量不错，但有改进空间。";
+            }
+            else if (qualityScore >= 50)
+            {
+                rating = "一般";
+                advice = "代码质量一般，建议重构复杂部分。";
+            }
+            else
+            {
+                rating = "需改进";
+                advice = "代码质量较差，优先重构长方法和高复杂度代码。";
+            }
+            Console.WriteLine($"[评分] 总体评分: {qualityScore:F0}/100 - {rating}");
+            Console.WriteLine($"[建议] {advice}");
+
+            // Top complex methods
+            Console.WriteLine();
+            Console.WriteLine("[最复杂方法] (Top 5，优先重构):");
+            var topMethods = qualityStats.Methods
+                .Select(kv => (Key: kv.Key, Quality: kv.Value))
+                .OrderByDescending(x => x.Quality.Complexity)
+                .Take(5)
+                .ToArray();
+            WriteMethodHeader();
+            foreach (var m in topMethods)
+            {
+                WriteMethodRow(m.Key, m.Quality.Complexity.ToString(), m.Quality.Lines.ToString(), m.Quality.Nesting.ToString());
+            }
+
+            // Long methods
+            Console.WriteLine();
+            Console.WriteLine("[最长方法] (Top 5，考虑拆分):");
+            var longMethodsList = qualityStats.Methods
+                .Select(kv => (Key: kv.Key, Quality: kv.Value))
+                .OrderByDescending(x => x.Quality.Lines)
+                .Take(5)
+                .ToArray();
+            WriteMethodHeader();
+            foreach (var m in longMethodsList)
+            {
+                WriteMethodRow(m.Key, m.Quality.Complexity.ToString(), m.Quality.Lines.ToString(), m.Quality.Nesting.ToString());
+            }
+        }
     }
 
     private static void ReserveScreenArea(int lines)
@@ -446,7 +565,29 @@ public static class CodeStatsCommands
         Console.WriteLine();
     }
 
-    private static string Truncate(string s, int max)
+    private static void WriteMethodHeader()
+    {
+        Console.Write(new string(' ', Math.Max(0, Console.BufferWidth - 1)));
+        Console.SetCursorPosition(0, Console.CursorTop);
+        WriteAt(0, "方法");
+        WriteAt(50, "复杂度");
+        WriteAt(62, "行数");
+        WriteAt(74, "嵌套");
+        Console.WriteLine();
+    }
+
+    private static void WriteMethodRow(string method, string complexity, string lines, string nesting)
+    {
+        Console.Write(new string(' ', Math.Max(0, Console.BufferWidth - 1)));
+        Console.SetCursorPosition(0, Console.CursorTop);
+        WriteAt(0, Truncate(method, 48));
+        WriteAt(50, complexity);
+        WriteAt(62, lines);
+        WriteAt(74, nesting);
+        Console.WriteLine();
+    }
+
+    private static string Truncate(String s, int max)
     {
         if (string.IsNullOrEmpty(s)) return s;
         if (s.Length <= max) return s;
@@ -536,12 +677,79 @@ public static class CodeStatsCommands
         return new FileStats(total, blank, comment, code, bytes, lang);
     }
 
-    private static string GuessLanguage(string file)
+    private static void AnalyzeQuality(string file, QualityStats qualityStats)
     {
-        var ext = Path.GetExtension(file);
-        if (string.IsNullOrEmpty(ext)) return "Other";
-        if (ExtensionToLanguage.TryGetValue(ext, out var lang)) return lang;
-        return "Other";
+        try
+        {
+            var code = File.ReadAllText(file);
+            var tree = CSharpSyntaxTree.ParseText(code);
+            var root = tree.GetRoot();
+
+            // Analyze methods
+            var methods = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
+            foreach (var method in methods)
+            {
+                var complexity = CalculateCyclomaticComplexity(method);
+                var lines = method.GetLocation().GetLineSpan().EndLinePosition.Line - method.GetLocation().GetLineSpan().StartLinePosition.Line + 1;
+                var nesting = CalculateMaxNestingDepth(method);
+                qualityStats.AddMethod(file, method.Identifier.Text, complexity, lines, nesting);
+            }
+        }
+        catch
+        {
+            // Ignore analysis failures
+        }
+    }
+
+    private static int CalculateCyclomaticComplexity(MethodDeclarationSyntax method)
+    {
+        int complexity = 1; // base
+        var descendants = method.DescendantNodesAndTokens();
+
+        foreach (var node in descendants)
+        {
+            if (node.IsNode)
+            {
+                var n = node.AsNode();
+                if (n is IfStatementSyntax || n is WhileStatementSyntax || n is ForStatementSyntax ||
+                    n is ForEachStatementSyntax || n is CaseSwitchLabelSyntax || n is ConditionalExpressionSyntax ||
+                    n is BinaryExpressionSyntax bin && (bin.OperatorToken.IsKind(SyntaxKind.AmpersandAmpersandToken) || bin.OperatorToken.IsKind(SyntaxKind.BarBarToken)))
+                {
+                    complexity++;
+                }
+            }
+        }
+        return complexity;
+    }
+
+    private static int CalculateMaxNestingDepth(MethodDeclarationSyntax method)
+    {
+        int maxDepth = 0;
+        int currentDepth = 0;
+
+        foreach (var node in method.DescendantNodesAndTokens())
+        {
+            if (node.IsNode)
+            {
+                var n = node.AsNode();
+                if (n is BlockSyntax)
+                {
+                    currentDepth++;
+                    maxDepth = Math.Max(maxDepth, currentDepth);
+                }
+                else if (n is IfStatementSyntax || n is WhileStatementSyntax || n is ForStatementSyntax || n is ForEachStatementSyntax)
+                {
+                    // These can have blocks
+                    currentDepth++;
+                    maxDepth = Math.Max(maxDepth, currentDepth);
+                }
+            }
+            else if (node.IsToken && node.AsToken().IsKind(SyntaxKind.CloseBraceToken))
+            {
+                currentDepth = Math.Max(0, currentDepth - 1);
+            }
+        }
+        return maxDepth;
     }
 
     private static Dictionary<string, string> BuildExtensionToLanguageMap()
@@ -551,12 +759,64 @@ public static class CodeStatsCommands
         {
             foreach (var ext in lang.Extensions)
             {
-                if (string.IsNullOrWhiteSpace(ext)) continue;
-                var key = ext.StartsWith('.') ? ext : "." + ext;
-                map.TryAdd(key, lang.Name);
+                if (!map.ContainsKey(ext))
+                    map.Add(ext, lang.Name);
             }
         }
         return map;
+    }
+
+    private static Options ParseOptions(string[] args)
+    {
+        string root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
+
+        bool followSymlinks = false;
+        int refreshMs = 200;
+        int maxDegree = Math.Clamp(Environment.ProcessorCount, 2, 16);
+        string[] extensions = Languages.SelectMany(l => l.Extensions).ToArray();
+        bool includeHidden = false;
+        bool includeBinObj = false;
+        bool analyzeQuality = false;
+
+        for (int i = 1; i < args.Length; i++)
+        {
+            var a = args[i];
+            if (a is "--follow" or "-L") followSymlinks = true;
+            else if (a is "--hidden") includeHidden = true;
+            else if (a is "--binobj") includeBinObj = true;
+            else if (a == "--ql") analyzeQuality = true;
+            else if (a.StartsWith("--refresh=", StringComparison.OrdinalIgnoreCase) && int.TryParse(a["--refresh=".Length..], out var r)) refreshMs = Math.Clamp(r, 50, 2000);
+            else if (a.StartsWith("--j=", StringComparison.OrdinalIgnoreCase) && int.TryParse(a["--j=".Length..], out var j)) maxDegree = Math.Clamp(j, 1, 64);
+            else if (a.StartsWith("--ext=", StringComparison.OrdinalIgnoreCase))
+            {
+                var list = a["--ext=".Length..]
+                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.StartsWith('.') ? x : "." + x)
+                    .ToArray();
+                if (list.Length > 0) extensions = list;
+            }
+        }
+
+        return new Options(root, followSymlinks, refreshMs, maxDegree, extensions, includeHidden, includeBinObj, analyzeQuality);
+    }
+
+    private static void PrintHelp()
+    {
+        UI.PrintHeader("loc - 目录代码统计");
+        UI.PrintInfo("用法: loc [dir] [options]");
+        Console.WriteLine();
+        UI.PrintResult("loc", "统计当前目录");
+        UI.PrintResult("loc D:/repo", "统计指定目录");
+        UI.PrintInfo("默认会统计主流语言源码/工程文件(如 C#/Java/JS/TS/C/C++/Go/Python/Rust 等)。可用 --ext 覆盖。");
+        UI.PrintResult("--ext=.cs,.js,.ts", "指定文件扩展名列表(逗号分隔)");
+        UI.PrintResult("--refresh=200", "刷新间隔(ms), 默认 200");
+        UI.PrintResult("--j=8", "并行度(线程数), 默认 CPU 核心数(2-16)");
+        UI.PrintResult("--hidden", "包含隐藏文件");
+        UI.PrintResult("--binobj", "包含 bin/obj/.git 等目录(默认排除)");
+        UI.PrintResult("--follow | -L", "跟随符号链接(默认不跟随)");
+        UI.PrintResult("--ql", "启用代码质量分析 (C# 方法复杂度等)");
+        Console.WriteLine();
+        UI.PrintInfo("说明: 注释/代码/空白为启发式统计(支持 // 和 /* */，会尽量忽略字符串中的注释符号)。");
     }
 
     private static void AnalyzeLineCSharpLike(ReadOnlySpan<char> s, ref bool inBlockComment, out long commentPart, out long codePart)
@@ -692,9 +952,9 @@ public static class CodeStatsCommands
 
     private static bool IsBlank(ReadOnlySpan<char> s)
     {
-        foreach (var ch in s)
+        foreach (var c in s)
         {
-            if (!char.IsWhiteSpace(ch)) return false;
+            if (!char.IsWhiteSpace(c)) return false;
         }
         return true;
     }
@@ -708,86 +968,11 @@ public static class CodeStatsCommands
         return false;
     }
 
-    private static Options ParseOptions(string[] args)
+    private static string GuessLanguage(string file)
     {
-        string root = args.Length > 0 ? args[0] : Directory.GetCurrentDirectory();
-
-        bool followSymlinks = false;
-        int refreshMs = 200;
-        int maxDegree = Math.Clamp(Environment.ProcessorCount, 2, 16);
-        bool includeHidden = false;
-        bool includeBinObj = false;
-
-        string[] extensions =
-        [
-            // C# / .NET
-            ".cs", ".csx", ".fs", ".fsx", ".vb",
-            ".xaml", ".razor", ".csproj", ".fsproj", ".vbproj", ".sln",
-            ".props", ".targets", ".config", ".nuspec",
-
-            // Java / JVM
-            ".java", ".kt", ".kts", ".groovy", ".gradle", ".scala",
-
-            // JavaScript / TypeScript
-            ".js", ".mjs", ".cjs", ".ts", ".mts", ".cts", ".jsx", ".tsx",
-
-            // C / C++
-            ".c", ".h", ".i", ".ii", ".cc", ".cpp", ".cxx", ".c++", ".hh", ".hpp", ".hxx", ".inl",
-
-            // Go / Python / Rust
-            ".go", ".py", ".pyw", ".rs",
-
-            // PHP / Ruby
-            ".php", ".phtml", ".rb",
-
-            // Shell
-            ".sh", ".bash", ".zsh", ".ps1", ".psm1", ".psd1", ".cmd", ".bat",
-
-            // Web / markup / data / docs
-            ".html", ".htm", ".css", ".scss", ".sass", ".less",
-            ".json", ".xml", ".yaml", ".yml", ".toml", ".ini",
-            ".md", ".rst", ".txt",
-
-            // Build / CI
-            ".cmake", ".make", ".mk", ".dockerfile", ".editorconfig"
-        ];
-
-        for (int i = 1; i < args.Length; i++)
-        {
-            var a = args[i];
-            if (a is "--follow" or "-L") followSymlinks = true;
-            else if (a is "--hidden") includeHidden = true;
-            else if (a is "--binobj") includeBinObj = true;
-            else if (a.StartsWith("--refresh=", StringComparison.OrdinalIgnoreCase) && int.TryParse(a["--refresh=".Length..], out var r)) refreshMs = Math.Clamp(r, 50, 2000);
-            else if (a.StartsWith("--j=", StringComparison.OrdinalIgnoreCase) && int.TryParse(a["--j=".Length..], out var j)) maxDegree = Math.Clamp(j, 1, 64);
-            else if (a.StartsWith("--ext=", StringComparison.OrdinalIgnoreCase))
-            {
-                var list = a["--ext=".Length..]
-                    .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                    .Select(x => x.StartsWith('.') ? x : "." + x)
-                    .ToArray();
-                if (list.Length > 0) extensions = list;
-            }
-        }
-
-        return new Options(root, followSymlinks, refreshMs, maxDegree, extensions, includeHidden, includeBinObj);
-    }
-
-    private static void PrintHelp()
-    {
-        UI.PrintHeader("loc - 目录代码统计");
-        UI.PrintInfo("用法: loc [dir] [options]");
-        Console.WriteLine();
-        UI.PrintResult("loc", "统计当前目录");
-        UI.PrintResult("loc D:/repo", "统计指定目录");
-        UI.PrintInfo("默认会统计主流语言源码/工程文件(如 C#/Java/JS/TS/C/C++/Go/Python/Rust 等)。可用 --ext 覆盖。");
-        UI.PrintResult("--ext=.cs,.js,.ts", "指定文件扩展名列表(逗号分隔)");
-        UI.PrintResult("--refresh=200", "刷新间隔(ms), 默认 200");
-        UI.PrintResult("--j=8", "并行度(线程数), 默认 CPU 核心数(2-16)");
-        UI.PrintResult("--hidden", "包含隐藏文件");
-        UI.PrintResult("--binobj", "包含 bin/obj/.git 等目录(默认排除)");
-        UI.PrintResult("--follow | -L", "跟随符号链接(默认不跟随)");
-        Console.WriteLine();
-        UI.PrintInfo("说明: 注释/代码/空白为启发式统计(支持 // 和 /* */，会尽量忽略字符串中的注释符号)。");
+        var ext = Path.GetExtension(file);
+        if (string.IsNullOrEmpty(ext)) return "Other";
+        if (ExtensionToLanguage.TryGetValue(ext, out var lang)) return lang;
+        return "Other";
     }
 }
