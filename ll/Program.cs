@@ -177,6 +177,8 @@ class Program
         {
             Console.WriteLine($"自动输入脚本启动失败: {ex.Message}");
         }
+        // 初始化输入统计
+        InputStats.Initialize();
 
         // 启动后台任务，每分钟更新总运行时长
         _lastUpdateTime = DateTime.Now;
@@ -217,6 +219,7 @@ class Program
                 EmailSendCount = _emailSendCount;
                 DbStoreCount = _dbStoreCount;
                 UpdateConfigTotalRuntime(_totalRuntimeSeconds);
+                InputStats.UpdateStats();
             }
         });
         // 入口点
@@ -229,9 +232,9 @@ class Program
             long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
             string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
             ConfigManager.SetValue("LastLaunchTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
-            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}");
+            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}，鼠标点击次数: {InputStats.MouseClickCount} ({InputStats.SessionMouseClickCount})，键盘按键次数: {InputStats.KeyboardPressCount} ({InputStats.SessionKeyboardPressCount})");
             UpdateConsoleTitle();
-            // 默认开启 2 小时闲时关机监听
+            // 默认开启 2 小时时间关机监听
             PowerManager.StartIdleMonitor(new[] { "2h" });
             IsIdleMonitoring = true;
             UpdateConsoleTitle();
@@ -925,7 +928,7 @@ class Program
         var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
         long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
         string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
-        UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}");
+        UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}，鼠标点击次数: {InputStats.MouseClickCount} ({InputStats.SessionMouseClickCount})，键盘按键次数: {InputStats.KeyboardPressCount} ({InputStats.SessionKeyboardPressCount})");
     }
 
     [UnconditionalSuppressMessage("IL", "IL2026")]
