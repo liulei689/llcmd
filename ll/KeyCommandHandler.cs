@@ -15,7 +15,7 @@ public static class KeyCommandHandler
         if (args.Length == 0)
         {
             UI.PrintError("用法: key <子命令> [参数]");
-            UI.PrintInfo("子命令: add <name> <value>, get <name>, list, remove <name>, import <csv_file>, search <keyword>");
+            UI.PrintInfo("子命令: add <name> <value>, get <name>, list, remove <name>, import <csv_file>, search <keyword>, refresh");
             return;
         }
 
@@ -34,9 +34,14 @@ public static class KeyCommandHandler
                 UI.PrintSuccess("密钥已添加。");
                 break;
             case "get":
-                if (subArgs.Length < 1 || subArgs.Length > 2)
+                if (!KeyManager.IsLoaded)
                 {
-                    UI.PrintError("用法: key get <name> [123456]");
+                    UI.PrintError("密钥未加载");
+                    return;
+                }
+                if (KeyManager.IsExpired)
+                {
+                    UI.PrintError("Key A 已过期，请运行 key refresh");
                     return;
                 }
                 string name = subArgs[0];
@@ -67,6 +72,16 @@ public static class KeyCommandHandler
                 }
                 break;
             case "list":
+                if (!KeyManager.IsLoaded)
+                {
+                    UI.PrintError("密钥未加载");
+                    return;
+                }
+                if (KeyManager.IsExpired)
+                {
+                    UI.PrintError("Key A 已过期，请运行 key refresh");
+                    return;
+                }
                 var keys = KeyManager.ListKeys();
                 if (keys.Any())
                 {
@@ -120,6 +135,16 @@ public static class KeyCommandHandler
                 UI.PrintSuccess("CSV 已导入。");
                 break;
             case "search":
+                if (!KeyManager.IsLoaded)
+                {
+                    UI.PrintError("密钥未加载");
+                    return;
+                }
+                if (KeyManager.IsExpired)
+                {
+                    UI.PrintError("Key A 已过期，请运行 key refresh");
+                    return;
+                }
                 if (subArgs.Length < 1)
                 {
                     UI.PrintError("用法: key search <keyword>");
@@ -146,6 +171,9 @@ public static class KeyCommandHandler
                 {
                     UI.PrintInfo("未找到匹配的密钥。");
                 }
+                break;
+            case "refresh":
+                KeyManager.RefreshKeys();
                 break;
             default:
                 UI.PrintError($"未知子命令: {subCommand}");
