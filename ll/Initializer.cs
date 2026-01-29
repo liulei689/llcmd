@@ -48,6 +48,7 @@ namespace LL
             CommandManager.RegisterCommand(32, "loc", "统计目录代码行数", args => CodeStatsCommands.Run(args));
             CommandManager.RegisterCommand(33, "template", "生成项目模板", args => TemplateCommands.Run(args));
             CommandManager.RegisterCommand(34, "volume", "音量控制: mute, unmute, up, down, set <level>", args => VolumeCommands.Run(args));
+            CommandManager.RegisterCommand(35, "lottery", "打开年会抽奖页面", args => LotteryCommands.Run(args));
 
             // 常用快捷操作（面向普通用户）
             CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());

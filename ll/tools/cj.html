@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 年会盛典 - 幸运大转盘</title>
+    <!-- 内嵌 canvas-confetti，不再依赖外部 CDN -->
+    <script>
+        /**
+ * Minified by jsDelivr using Terser v5.37.0.
+ * Original file: /npm/canvas-confetti@1.6.0/dist/confetti.browser.js
+ *
+ * Do NOT use SRI with dynamically generated files! More information: https://www.jsdelivr.com/using-sri-with-dynamic-files
+ */
+        !function (t, e) { !function t(e, n, a, i) { var o = !!(e.Worker && e.Blob && e.Promise && e.OffscreenCanvas && e.OffscreenCanvasRenderingContext2D && e.HTMLCanvasElement && e.HTMLCanvasElement.prototype.transferControlToOffscreen && e.URL && e.URL.createObjectURL); function r() { } function l(t) { var a = n.exports.Promise, i = void 0 !== a ? a : e.Promise; return "function" == typeof i ? new i(t) : (t(r, r), null) } var c, s, u, h, f, d, m, g, b, v = (u = Math.floor(1e3 / 60), h = {}, f = 0, "function" == typeof requestAnimationFrame && "function" == typeof cancelAnimationFrame ? (c = function (t) { var e = Math.random(); return h[e] = requestAnimationFrame((function n(a) { f === a || f + u - 1 < a ? (f = a, delete h[e], t()) : h[e] = requestAnimationFrame(n) })), e }, s = function (t) { h[t] && cancelAnimationFrame(h[t]) }) : (c = function (t) { return setTimeout(t, u) }, s = function (t) { return clearTimeout(t) }), { frame: c, cancel: s }), M = (g = {}, function () { if (d) return d; if (!a && o) { var e = ["var CONFETTI, SIZE = {}, module = {};", "(" + t.toString() + ")(this, module, true, SIZE);", "onmessage = function(msg) {", "  if (msg.data.options) {", "    CONFETTI(msg.data.options).then(function () {", "      if (msg.data.callback) {", "        postMessage({ callback: msg.data.callback });", "      }", "    });", "  } else if (msg.data.reset) {", "    CONFETTI && CONFETTI.reset();", "  } else if (msg.data.resize) {", "    SIZE.width = msg.data.resize.width;", "    SIZE.height = msg.data.resize.height;", "  } else if (msg.data.canvas) {", "    SIZE.width = msg.data.canvas.width;", "    SIZE.height = msg.data.canvas.height;", "    CONFETTI = module.exports.create(msg.data.canvas);", "  }", "}"].join("\n"); try { d = new Worker(URL.createObjectURL(new Blob([e]))) } catch (t) { return void 0 !== typeof console && "function" == typeof console.warn && console.warn("🎊 Could not load worker", t), null } !function (t) { function e(e, n) { t.postMessage({ options: e || {}, callback: n }) } t.init = function (e) { var n = e.transferControlToOffscreen(); t.postMessage({ canvas: n }, [n]) }, t.fire = function (n, a, i) { if (m) return e(n, null), m; var o = Math.random().toString(36).slice(2); return m = l((function (a) { function r(e) { e.data.callback === o && (delete g[o], t.removeEventListener("message", r), m = null, i(), a()) } t.addEventListener("message", r), e(n, o), g[o] = r.bind(null, { data: { callback: o } }) })) }, t.reset = function () { for (var e in t.postMessage({ reset: !0 }), g) g[e](), delete g[e] } }(d) } return d }), p = { particleCount: 50, angle: 90, spread: 45, startVelocity: 45, decay: .9, gravity: 1, drift: 0, ticks: 200, x: .5, y: .5, shapes: ["square", "circle"], zIndex: 100, colors: ["#26ccff", "#a25afd", "#ff5e7e", "#88ff5a", "#fcff42", "#ffa62d", "#ff36ff"], disableForReducedMotion: !1, scalar: 1 }; function y(t, e, n) { return function (t, e) { return e ? e(t) : t }(t && null != t[e] ? t[e] : p[e], n) } function w(t) { return t < 0 ? 0 : Math.floor(t) } function x(t) { return parseInt(t, 16) } function C(t) { return t.map(T) } function T(t) { var e = String(t).replace(/[^0-9a-f]/gi, ""); return e.length < 6 && (e = e[0] + e[0] + e[1] + e[1] + e[2] + e[2]), { r: x(e.substring(0, 2)), g: x(e.substring(2, 4)), b: x(e.substring(4, 6)) } } function I(t) { t.width = document.documentElement.clientWidth, t.height = document.documentElement.clientHeight } function k(t) { var e = t.getBoundingClientRect(); t.width = e.width, t.height = e.height } function E(t, e, n, o, r) { var c, s, u = e.slice(), h = t.getContext("2d"), f = l((function (e) { function l() { c = s = null, h.clearRect(0, 0, o.width, o.height), r(), e() } c = v.frame((function e() { !a || o.width === i.width && o.height === i.height || (o.width = t.width = i.width, o.height = t.height = i.height), o.width || o.height || (n(t), o.width = t.width, o.height = t.height), h.clearRect(0, 0, o.width, o.height), u = u.filter((function (t) { return function (t, e) { e.x += Math.cos(e.angle2D) * e.velocity + e.drift, e.y += Math.sin(e.angle2D) * e.velocity + e.gravity, e.wobble += e.wobbleSpeed, e.velocity *= e.decay, e.tiltAngle += .1, e.tiltSin = Math.sin(e.tiltAngle), e.tiltCos = Math.cos(e.tiltAngle), e.random = Math.random() + 2, e.wobbleX = e.x + 10 * e.scalar * Math.cos(e.wobble), e.wobbleY = e.y + 10 * e.scalar * Math.sin(e.wobble); var n = e.tick++ / e.totalTicks, a = e.x + e.random * e.tiltCos, i = e.y + e.random * e.tiltSin, o = e.wobbleX + e.random * e.tiltCos, r = e.wobbleY + e.random * e.tiltSin; if (t.fillStyle = "rgba(" + e.color.r + ", " + e.color.g + ", " + e.color.b + ", " + (1 - n) + ")", t.beginPath(), "circle" === e.shape) t.ellipse ? t.ellipse(e.x, e.y, Math.abs(o - a) * e.ovalScalar, Math.abs(r - i) * e.ovalScalar, Math.PI / 10 * e.wobble, 0, 2 * Math.PI) : function (t, e, n, a, i, o, r, l, c) { t.save(), t.translate(e, n), t.rotate(o), t.scale(a, i), t.arc(0, 0, 1, r, l, c), t.restore() }(t, e.x, e.y, Math.abs(o - a) * e.ovalScalar, Math.abs(r - i) * e.ovalScalar, Math.PI / 10 * e.wobble, 0, 2 * Math.PI); else if ("star" === e.shape) for (var l = Math.PI / 2 * 3, c = 4 * e.scalar, s = 8 * e.scalar, u = e.x, h = e.y, f = 5, d = Math.PI / f; f--;)u = e.x + Math.cos(l) * s, h = e.y + Math.sin(l) * s, t.lineTo(u, h), l += d, u = e.x + Math.cos(l) * c, h = e.y + Math.sin(l) * c, t.lineTo(u, h), l += d; else t.moveTo(Math.floor(e.x), Math.floor(e.y)), t.lineTo(Math.floor(e.wobbleX), Math.floor(i)), t.lineTo(Math.floor(o), Math.floor(r)), t.lineTo(Math.floor(a), Math.floor(e.wobbleY)); return t.closePath(), t.fill(), e.tick < e.totalTicks }(h, t) })), u.length ? c = v.frame(e) : l() })), s = l })); return { addFettis: function (t) { return u = u.concat(t), f }, canvas: t, promise: f, reset: function () { c && v.cancel(c), s && s() } } } function S(t, n) { var a, i = !t, r = !!y(n || {}, "resize"), c = y(n, "disableForReducedMotion", Boolean), s = o && !!y(n || {}, "useWorker") ? M() : null, u = i ? I : k, h = !(!t || !s) && !!t.__confetti_initialized, f = "function" == typeof matchMedia && matchMedia("(prefers-reduced-motion)").matches; function d(e, n, i) { for (var o, r, l, c, s, h = y(e, "particleCount", w), f = y(e, "angle", Number), d = y(e, "spread", Number), m = y(e, "startVelocity", Number), g = y(e, "decay", Number), b = y(e, "gravity", Number), v = y(e, "drift", Number), M = y(e, "colors", C), p = y(e, "ticks", Number), x = y(e, "shapes"), T = y(e, "scalar"), I = function (t) { var e = y(t, "origin", Object); return e.x = y(e, "x", Number), e.y = y(e, "y", Number), e }(e), k = h, S = [], F = t.width * I.x, N = t.height * I.y; k--;)S.push((o = { x: F, y: N, angle: f, spread: d, startVelocity: m, color: M[k % M.length], shape: x[(c = 0, s = x.length, Math.floor(Math.random() * (s - c)) + c)], ticks: p, decay: g, gravity: b, drift: v, scalar: T }, r = void 0, l = void 0, r = o.angle * (Math.PI / 180), l = o.spread * (Math.PI / 180), { x: o.x, y: o.y, wobble: 10 * Math.random(), wobbleSpeed: Math.min(.11, .1 * Math.random() + .05), velocity: .5 * o.startVelocity + Math.random() * o.startVelocity, angle2D: -r + (.5 * l - Math.random() * l), tiltAngle: (.5 * Math.random() + .25) * Math.PI, color: o.color, shape: o.shape, tick: 0, totalTicks: o.ticks, decay: o.decay, drift: o.drift, random: Math.random() + 2, tiltSin: 0, tiltCos: 0, wobbleX: 0, wobbleY: 0, gravity: 3 * o.gravity, ovalScalar: .6, scalar: o.scalar })); return a ? a.addFettis(S) : (a = E(t, S, u, n, i)).promise } function m(n) { var o = c || y(n, "disableForReducedMotion", Boolean), m = y(n, "zIndex", Number); if (o && f) return l((function (t) { t() })); i && a ? t = a.canvas : i && !t && (t = function (t) { var e = document.createElement("canvas"); return e.style.position = "fixed", e.style.top = "0px", e.style.left = "0px", e.style.pointerEvents = "none", e.style.zIndex = t, e }(m), document.body.appendChild(t)), r && !h && u(t); var g = { width: t.width, height: t.height }; function b() { if (s) { var e = { getBoundingClientRect: function () { if (!i) return t.getBoundingClientRect() } }; return u(e), void s.postMessage({ resize: { width: e.width, height: e.height } }) } g.width = g.height = null } function v() { a = null, r && e.removeEventListener("resize", b), i && t && (document.body.removeChild(t), t = null, h = !1) } return s && !h && s.init(t), h = !0, s && (t.__confetti_initialized = !0), r && e.addEventListener("resize", b, !1), s ? s.fire(n, g, v) : d(n, g, v) } return m.reset = function () { s && s.reset(), a && a.reset() }, m } function F() { return b || (b = S(null, { useWorker: !0, resize: !0 })), b } n.exports = function () { return F().apply(this, arguments) }, n.exports.reset = function () { F().reset() }, n.exports.create = S }(function () { return void 0 !== t ? t : "undefined" != typeof self ? self : this || {} }(), e, !1), t.confetti = e.exports }(window, {});
+        //# sourceMappingURL=/sm/6de00f2697a1683b235e589897df757a94e6809643432a9e3ad259420752442d.map
+    </script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+            overflow: hidden;
+            height: 100vh;
+            color: #fff;
+        }
+
+        /* 背景 */
+        #starfield, #particles-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #starfield {
+            z-index: 0;
+        }
+
+        #particles-canvas {
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* 标题 - 独立顶部 */
+        .header {
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 20;
+            width: 100%;
+        }
+
+        .title {
+            font-size: 3rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 50%, #ffd700 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+            letter-spacing: 10px;
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #8b9dc3;
+            font-size: 1rem;
+            letter-spacing: 4px;
+        }
+
+        /* 主容器 - 左右布局核心 */
+        .container {
+            position: relative;
+            z-index: 10;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding-top: 100px; /* 给标题留空间 */
+        }
+
+        /* 左右排列布局 */
+        .main-layout {
+            display: flex;
+            flex-direction: row; /* 明确左右排列 */
+            align-items: center;
+            justify-content: center;
+            gap: 60px;
+            width: 100%;
+            max-width: 1200px;
+            padding: 0 40px;
+        }
+
+        /* 转盘区域 - 左侧 */
+        .wheel-section {
+            position: relative;
+            flex-shrink: 0; /* 不缩小 */
+        }
+
+        .wheel-wrapper {
+            position: relative;
+            width: 520px;
+            height: 520px;
+            border-radius: 50%;
+            padding: 15px;
+            background: linear-gradient(135deg, #ffd700, #b8860b, #daa520);
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.4);
+        }
+
+        .wheel-inner {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: #1a1a2e;
+            position: relative;
+            overflow: hidden;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.8);
+        }
+
+        .led-ring {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            right: -10px;
+            bottom: -10px;
+            border-radius: 50%;
+            border: 3px dashed rgba(255, 255, 255, 0.8);
+            animation: rotate 8s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes rotate {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        #wheel-canvas {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            transform-origin: center center;
+        }
+
+        /* 指针 */
+        .pointer {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 30;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
+        }
+
+        .pointer-shape {
+            width: 0;
+            height: 0;
+            border-left: 25px solid transparent;
+            border-right: 25px solid transparent;
+            border-top: 50px solid #e74c3c;
+            animation: bounce 2s infinite;
+            filter: drop-shadow(0 0 10px rgba(231, 76, 60, 0.8));
+        }
+
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-5px);
+            }
+        }
+
+        /* 中心按钮 */
+        .center-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 30%, #ff6b6b, #c0392b);
+            border: 4px solid #ffd700;
+            color: #fff;
+            font-size: 1.8rem;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 25;
+            box-shadow: 0 0 30px rgba(231, 76, 60, 0.6);
+            transition: transform 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+            .center-btn:hover {
+                transform: translate(-50%, -50%) scale(1.1);
+            }
+
+            .center-btn.spinning {
+                pointer-events: none;
+                filter: grayscale(0.7);
+                transform: translate(-50%, -50%) scale(0.95);
+            }
+
+        /* 中奖面板 - 右侧固定 */
+        .winners-panel {
+            width: 340px;
+            height: 520px; /* 与转盘高度接近 */
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            flex-shrink: 0; /* 不缩小 */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            color: #ffd700;
+            text-align: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+            flex-shrink: 0;
+        }
+
+        .winners-list {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+
+            .winners-list::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .winners-list::-webkit-scrollbar-thumb {
+                background: rgba(255, 215, 0, 0.3);
+                border-radius: 3px;
+            }
+
+        .winner-item {
+            background: rgba(255,255,255,0.08);
+            border-left: 3px solid #ffd700;
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            animation: slideIn 0.4s ease-out;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+        }
+
+        .winner-prize {
+            color: #ffd700;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+
+        /* 大奖全屏爆炸 */
+        .explosion-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, rgba(0,0,0,0.8), rgba(0,0,0,0.95));
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+            .explosion-overlay.show {
+                display: flex;
+                opacity: 1;
+            }
+
+        .big-content {
+            text-align: center;
+            animation: scaleUp 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 2001;
+        }
+
+        @keyframes scaleUp {
+            from {
+                transform: scale(0);
+            }
+
+            to {
+                transform: scale(1);
+            }
+        }
+
+        .big-icon {
+            font-size: 7rem;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 30px rgba(255,215,0,0.8));
+            animation: float 2s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-20px);
+            }
+        }
+
+        .big-title {
+            font-size: 2.5rem;
+            color: #ffd700;
+            text-shadow: 0 0 40px rgba(255,215,0,0.8);
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .big-prize {
+            font-size: 3.5rem;
+            color: #fff;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255,255,255,0.5);
+        }
+
+        .big-winner {
+            font-size: 1.8rem;
+            color: #8b9dc3;
+        }
+
+            .big-winner span {
+                color: #ffd700;
+                font-weight: bold;
+                font-size: 2rem;
+            }
+
+        .close-btn {
+            margin-top: 40px;
+            padding: 15px 50px;
+            background: rgba(255,215,0,0.2);
+            border: 2px solid #ffd700;
+            color: #ffd700;
+            font-size: 1.2rem;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+            .close-btn:hover {
+                background: rgba(255,215,0,0.4);
+                transform: scale(1.1);
+            }
+
+        /* 小奖提示 */
+        .small-toast {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(20, 20, 40, 0.95);
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
+            padding: 40px 60px;
+            z-index: 1500;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+            .small-toast.show {
+                transform: translate(-50%, -50%) scale(1);
+            }
+
+        .small-icon {
+            font-size: 4rem;
+            margin-bottom: 15px;
+        }
+
+        .small-text {
+            color: #8b9dc3;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .small-prize {
+            color: #fff;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        /* 控制 */
+        .controls {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            z-index: 100;
+        }
+
+        .ctrl-btn {
+            background: rgba(255,215,0,0.1);
+            border: 1px solid rgba(255,215,0,0.4);
+            color: #ffd700;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        /* 响应式：左右布局保持，除非屏幕太小 */
+        @media (max-width: 950px) {
+            .main-layout {
+                gap: 30px;
+            }
+
+            .wheel-wrapper {
+                width: 400px;
+                height: 400px;
+            }
+
+            .winners-panel {
+                width: 280px;
+                height: 400px;
+            }
+
+            .title {
+                font-size: 2.2rem;
+            }
+        }
+
+        @media (max-width: 750px) {
+            .main-layout {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            .winners-panel {
+                width: 90%;
+                height: 200px;
+            }
+
+            .wheel-wrapper {
+                width: 350px;
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="starfield"></canvas>
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- 大奖全屏特效 -->
+    <div class="explosion-overlay" id="explosionOverlay">
+        <div class="big-content">
+            <div class="big-icon" id="bigIcon">📱</div>
+            <div class="big-title">🎉 恭喜中大奖 🎉</div>
+            <div class="big-prize" id="bigPrize">iPhone 16 Pro</div>
+            <div class="big-winner">获奖者：<span id="bigName">张三</span></div>
+            <button class="close-btn" onclick="closeBig()">太棒了！</button>
+        </div>
+    </div>
+
+    <!-- 小奖提示 -->
+    <div class="small-toast" id="smallToast">
+        <div class="small-icon" id="smallIcon">☕</div>
+        <div class="small-text">恭喜获得</div>
+        <div class="small-prize" id="smallPrize">星巴克礼卡</div>
+    </div>
+
+    <div class="header">
+        <h1 class="title">幸运大转盘</h1>
+        <div class="subtitle">LUCKY DRAW 2026</div>
+    </div>
+
+    <div class="container">
+        <div class="main-layout">
+            <!-- 转盘在左 -->
+            <div class="wheel-section">
+                <div class="wheel-wrapper">
+                    <div class="led-ring"></div>
+                    <div class="wheel-inner">
+                        <canvas id="wheel-canvas" width="490" height="490"></canvas>
+                    </div>
+
+                    <div class="pointer">
+                        <div class="pointer-shape"></div>
+                    </div>
+
+                    <div class="center-btn" id="spinBtn">GO</div>
+                </div>
+            </div>
+
+            <!-- 中奖榜在右 -->
+            <div class="winners-panel">
+                <div class="panel-title">🏆 中奖榜单</div>
+                <div class="winners-list" id="winnersList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="ctrl-btn" id="muteBtn">🔊 音效</button>
+    </div>
+
+    <script>
+        // ====================
+        // 配置
+        // ====================
+        const PRIZES = [
+            { name: 'iPhone 16 Pro', icon: '📱', color: '#e74c3c', angle: 40, big: true },
+            { name: '现金 ¥888', icon: '💰', color: '#f39c12', angle: 50, big: true },
+            { name: '再接再厉', icon: '💪', color: '#7f8c8d', angle: 100, big: false },
+            { name: 'MacBook Air', icon: '💻', color: '#3498db', angle: 40, big: true },
+            { name: 'PS5 游戏机', icon: '🎮', color: '#9b59b6', angle: 50, big: true },
+            { name: '星巴克礼卡', icon: '☕', color: '#27ae60', angle: 40, big: false },
+            { name: 'Kindle', icon: '📚', color: '#1abc9c', angle: 40, big: false }
+        ];
+
+        let sectors = [];
+        let cur = 0;
+        PRIZES.forEach(p => {
+            sectors.push({ ...p, start: cur, end: cur + p.angle, mid: cur + p.angle / 2 });
+            cur += p.angle;
+        });
+
+        let currentRotation = 0;
+        let isSpinning = false;
+        let audioCtx = null;
+        let isMuted = false;
+
+        // ====================
+        // 背景和绘制（代码保持）
+        // ====================
+        function initBG() {
+            const c1 = document.getElementById('starfield');
+            const x1 = c1.getContext('2d');
+            const resize = () => {
+                c1.width = window.innerWidth;
+                c1.height = window.innerHeight;
+            };
+            resize();
+            window.addEventListener('resize', resize);
+
+            const stars = Array(200).fill().map(() => ({
+                x: Math.random() * c1.width,
+                y: Math.random() * c1.height,
+                size: Math.random() * 2,
+                speed: Math.random() * 0.2,
+                alpha: Math.random()
+            }));
+
+            const loop = () => {
+                x1.fillStyle = 'rgba(2, 4, 8, 0.2)';
+                x1.fillRect(0, 0, c1.width, c1.height);
+                stars.forEach(s => {
+                    s.y -= s.speed;
+                    if (s.y < 0) { s.y = c1.height; s.x = Math.random() * c1.width; }
+                    s.alpha += (Math.random() - 0.5) * 0.02;
+                    s.alpha = Math.max(0.1, Math.min(1, s.alpha));
+                    x1.beginPath();
+                    x1.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                    x1.fillStyle = `rgba(255,255,255,${s.alpha})`;
+                    x1.fill();
+                });
+                requestAnimationFrame(loop);
+            };
+            loop();
+
+            const c2 = document.getElementById('particles-canvas');
+            const x2 = c2.getContext('2d');
+            c2.width = window.innerWidth;
+            c2.height = window.innerHeight;
+
+            const parts = Array(60).fill().map(() => ({
+                x: Math.random() * c2.width,
+                y: Math.random() * c2.height,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                size: Math.random() * 3 + 1,
+                color: `rgba(255, ${200 + Math.random() * 55}, 0, ${Math.random() * 0.6})`
+            }));
+
+            const loop2 = () => {
+                x2.clearRect(0, 0, c2.width, c2.height);
+                parts.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    if (p.x < 0 || p.x > c2.width) p.vx *= -1;
+                    if (p.y < 0 || p.y > c2.height) p.vy *= -1;
+                    x2.fillStyle = p.color;
+                    x2.shadowBlur = 10;
+                    x2.shadowColor = p.color;
+                    x2.beginPath();
+                    x2.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    x2.fill();
+                    x2.shadowBlur = 0;
+                });
+                requestAnimationFrame(loop2);
+            };
+            loop2();
+        }
+
+        function drawWheel() {
+            const c = document.getElementById('wheel-canvas');
+            const x = c.getContext('2d');
+            const cx = 245, cy = 245, r = 220;
+
+            x.clearRect(0, 0, 490, 490);
+
+            sectors.forEach(s => {
+                const start = (s.start - 90) * Math.PI / 180;
+                const end = (s.end - 90) * Math.PI / 180;
+
+                x.save();
+                x.beginPath();
+                x.moveTo(cx, cy);
+                x.arc(cx, cy, r, start, end);
+                x.closePath();
+
+                const g = x.createRadialGradient(cx, cy, 0, cx, cy, r);
+                g.addColorStop(0, s.color);
+                g.addColorStop(1, darken(s.color, 40));
+                x.fillStyle = g;
+                x.fill();
+
+                x.strokeStyle = '#ffd700';
+                x.lineWidth = 3;
+                x.stroke();
+
+                const mid = (s.start + s.end) / 2;
+                const rad = (mid - 90) * Math.PI / 180;
+                const tx = cx + Math.cos(rad) * (r * 0.6);
+                const ty = cy + Math.sin(rad) * (r * 0.6);
+
+                x.translate(tx, ty);
+                x.rotate(rad + Math.PI / 2);
+                x.textAlign = 'center';
+                x.fillStyle = '#fff';
+                x.shadowColor = 'rgba(0,0,0,0.8)';
+                x.shadowBlur = 5;
+
+                x.font = 'bold 32px Arial';
+                x.fillText(s.icon, 0, -5);
+                x.font = 'bold 16px "Microsoft YaHei"';
+                x.fillText(s.name, 0, 18);
+                x.shadowBlur = 0;
+                x.restore();
+            });
+
+            x.beginPath();
+            x.arc(cx, cy, 35, 0, Math.PI * 2);
+            x.fillStyle = '#1a1a2e';
+            x.fill();
+            x.strokeStyle = '#ffd700';
+            x.lineWidth = 4;
+            x.stroke();
+        }
+
+        function darken(c, a) {
+            const n = parseInt(c.slice(1), 16);
+            return '#' + (0x1000000 + Math.max((n >> 16) - a, 0) * 0x10000 +
+                Math.max((n >> 8 & 0xff) - a, 0) * 0x100 +
+                Math.max((n & 0xff) - a, 0)).toString(16).slice(1);
+        }
+
+        // ====================
+        // 旋转逻辑（6秒悬念）
+        // ====================
+        async function spin() {
+            return new Promise(resolve => {
+                const rand = Math.random() * 360;
+                const target = sectors.find(s => rand >= s.start && rand < s.end) || sectors[0];
+                const targetAngle = target.start + 5 + Math.random() * (target.angle - 10);
+
+                const spins = 8 + Math.floor(Math.random() * 4);
+                const targetRot = (360 - targetAngle) + spins * 360;
+
+                const duration = 6000;
+                const startTime = Date.now();
+                const startRot = currentRotation;
+                const change = targetRot - startRot;
+
+                document.getElementById('spinBtn').classList.add('spinning');
+                playSound('spin');
+
+                const animate = () => {
+                    const elapsed = Date.now() - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    const ease = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+
+                    currentRotation = startRot + change * ease;
+                    document.getElementById('wheel-canvas').style.transform = `rotate(${currentRotation}deg)`;
+
+                    if (progress < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        document.getElementById('spinBtn').classList.remove('spinning');
+
+                        const norm = ((currentRotation % 360) + 360) % 360;
+                        const pointerAt = (360 - norm) % 360;
+                        const actual = sectors.find(s => pointerAt >= s.start && pointerAt < s.end);
+
+                        resolve(actual || target);
+                    }
+                };
+                animate();
+            });
+        }
+
+        // ====================
+        // 结果处理
+        // ====================
+        async function handleResult(prize) {
+            const names = ['张伟', '王芳', '李娜', '刘洋', '陈静', '杨勇', '赵强', '黄磊'];
+            const winner = names[Math.floor(Math.random() * names.length)] + Math.floor(Math.random() * 100);
+
+            // 加列表
+            const list = document.getElementById('winnersList');
+            const item = document.createElement('div');
+            item.className = 'winner-item';
+            item.innerHTML = `<span>${winner}</span><span class="winner-prize">${prize.icon} ${prize.name}</span>`;
+            list.insertBefore(item, list.firstChild);
+            if (list.children.length > 20) list.removeChild(list.lastChild);
+
+            // 延迟显示
+            setTimeout(() => {
+                if (prize.big) {
+                    showBig(prize, winner);
+                } else {
+                    showSmall(prize);
+                }
+            }, 300);
+        }
+
+        function showBig(prize, winner) {
+            document.getElementById('bigIcon').textContent = prize.icon;
+            document.getElementById('bigPrize').textContent = prize.name;
+            document.getElementById('bigName').textContent = winner;
+            document.getElementById('explosionOverlay').classList.add('show');
+
+            // 全屏爆炸
+            const colors = ['#ffd700', '#ff0000', '#00ff00', '#0000ff'];
+            const end = Date.now() + 4000;
+
+            const frame = () => {
+                confetti({ particleCount: 10, angle: 60, spread: 55, origin: { x: 0 }, colors, scalar: 1.5 });
+                confetti({ particleCount: 10, angle: 120, spread: 55, origin: { x: 1 }, colors, scalar: 1.5 });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            };
+
+            confetti({ particleCount: 300, spread: 100, origin: { y: 0.6 }, colors, scalar: 2 });
+            frame();
+
+            if (!isMuted && audioCtx) {
+                [523, 659, 784, 1047].forEach((f, i) => {
+                    const o = audioCtx.createOscillator();
+                    const g = audioCtx.createGain();
+                    o.connect(g); g.connect(audioCtx.destination);
+                    o.frequency.value = f;
+                    g.gain.setValueAtTime(0.3, audioCtx.currentTime + i * 0.1);
+                    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.1 + 0.6);
+                    o.start(audioCtx.currentTime + i * 0.1);
+                    o.stop(audioCtx.currentTime + i * 0.1 + 0.6);
+                });
+            }
+        }
+
+        function closeBig() {
+            document.getElementById('explosionOverlay').classList.remove('show');
+        }
+
+        function showSmall(prize) {
+            document.getElementById('smallIcon').textContent = prize.icon;
+            document.getElementById('smallPrize').textContent = prize.name;
+            document.getElementById('smallToast').classList.add('show');
+
+            setTimeout(() => {
+                document.getElementById('smallToast').classList.remove('show');
+            }, 2500);
+        }
+
+        function playSound(t) {
+            if (isMuted || !audioCtx) return;
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
+
+            if (t === 'spin') {
+                o.frequency.setValueAtTime(600, audioCtx.currentTime);
+                o.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 6);
+                g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 6);
+                o.start(); o.stop(audioCtx.currentTime + 6);
+            }
+        }
+
+        // ====================
+        // 初始化
+        // ====================
+        window.onload = () => {
+            initBG();
+            drawWheel();
+
+            document.addEventListener('click', () => {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }, { once: true });
+
+            document.getElementById('spinBtn').addEventListener('click', async () => {
+                if (isSpinning) return;
+                isSpinning = true;
+                const prize = await spin();
+                await handleResult(prize);
+                isSpinning = false;
+            });
+
+            document.getElementById('muteBtn').addEventListener('click', (e) => {
+                isMuted = !isMuted;
+                e.target.textContent = isMuted ? '🔇 静音' : '🔊 音效';
+            });
+        };
+    </script>
+</body>
+</html>

@@ -78,3 +78,4 @@
 
 - **template <type> [name]**: 生成项目模板 (支持短参数: c/console, w/webapi, lib/classlib 等, 调用 dotnet new, 自动重命名, 默认打开项目或文件夹)。
 - **volume <action>**: 音量控制 (mute/unmute/up/down/set <level>)。
+- **lottery**: 打开年会抽奖页面。
