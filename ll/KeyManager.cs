@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
+using System.Text;
 using LL;
 
 namespace LL;
@@ -9,28 +11,86 @@ public static class KeyManager
     private static readonly string KeysPath = Path.Combine(AppContext.BaseDirectory, "keys.llk");
     private static Dictionary<string, string> _keyValues = new(); // key -> encrypted value
     private static bool _isLoaded = false;
-    private const int CurrentVersion = 1;
+    private static string _keyA;
+    private static int _version;
+    private static DateTime _ttl;
+    private static bool _keysLoaded = false;
 
-    public static bool IsLoaded => _isLoaded;
+    public static bool IsLoaded => _keysLoaded;
+    public static bool IsExpired => DateTime.Now > _ttl;
 
     public static void LoadKeys()
+    {
+        if (_keysLoaded) return;
+
+        _keyA = ConfigManager.GetValue("keyA", "");
+        _version = int.TryParse(ConfigManager.GetValue("keyVersion", "1"), out int v) ? v : 1;
+        string ttlStr = ConfigManager.GetValue("keyTtl", "");
+        if (!string.IsNullOrEmpty(ttlStr) && DateTime.TryParse(ttlStr, out DateTime ttl))
+        {
+            _ttl = ttl;
+        }
+        else
+        {
+            _ttl = DateTime.MinValue;
+        }
+
+        if (string.IsNullOrEmpty(_keyA))
+        {
+            GenerateInitialKeys();
+            return;
+        }
+
+        // Set SM4 to use keyA
+        SM4Helper.SetKey(_keyA);
+
+        // Load the keys file
+        LoadKeysFile();
+
+        _keysLoaded = true;
+    }
+
+    private static void GenerateInitialKeys()
+    {
+        _keyA = GenerateRandomKey();
+        _version = 1;
+        double ttlHours = double.TryParse(ConfigManager.GetValue("keyTtlHours", "0.01"), out double h) ? h : 0.01;
+        _ttl = DateTime.Now.AddHours(ttlHours);
+
+        // Save to config (keyA in plain text)
+        ConfigManager.SetValue("keyA", _keyA);
+        ConfigManager.SetValue("keyVersion", _version.ToString());
+        ConfigManager.SetValue("keyTtl", _ttl.ToString("o")); // ISO format
+
+        // Set SM4 to keyA
+        SM4Helper.SetKey(_keyA);
+
+        _keysLoaded = true;
+    }
+
+    private static string GenerateRandomKey()
+    {
+        var bytes = new byte[12];
+        RandomNumberGenerator.Fill(bytes);
+        return Convert.ToBase64String(bytes);
+    }
+
+    private static void LoadKeysFile()
     {
         if (!File.Exists(KeysPath)) return;
         try
         {
-            var encryptedBytes = File.ReadAllBytes(KeysPath);
-            var plainBytes = SM4Helper.DecryptBytes(encryptedBytes);
-            using (var ms = new MemoryStream(plainBytes))
+            var encryptedBytes = SM4Helper.DecryptBytes(File.ReadAllBytes(KeysPath));
+            using (var ms = new MemoryStream(encryptedBytes))
             using (var reader = new BinaryReader(ms))
             {
                 string header = reader.ReadString();
                 if (header != "llk") return;
                 int version = reader.ReadInt32();
-                if (version != CurrentVersion) return;
+                if (version != 1) return; // CurrentVersion
                 int count = reader.ReadInt32();
                 for (int i = 0; i < count; i++)
                 {
-                    // key stored in plaintext inside the encrypted file; value is stored encrypted
                     string key = reader.ReadString();
                     string encryptedValue = reader.ReadString();
                     _keyValues[key] = encryptedValue;
@@ -43,17 +103,16 @@ public static class KeyManager
         _isLoaded = true;
     }
 
-    public static void SaveKeys()
+    private static void SaveKeysFile()
     {
         using (var ms = new MemoryStream())
         using (var writer = new BinaryWriter(ms))
         {
             writer.Write("llk");
-            writer.Write(CurrentVersion);
+            writer.Write(1); // CurrentVersion
             writer.Write(_keyValues.Count);
             foreach (var kvp in _keyValues)
             {
-                // key kept as plaintext in the record (the whole file is encrypted on disk)
                 writer.Write(kvp.Key);
                 writer.Write(kvp.Value);
             }
@@ -65,17 +124,21 @@ public static class KeyManager
 
     public static void AddKey(string name, string value)
     {
-        // 值先使用类级别加密（密文存储），键名也在保存时加密
+        if (IsExpired)
+        {
+            UI.PrintError("Key A 已过期，无法添加新密钥。请先运行 key refresh");
+            return;
+        }
         string encryptedValue = SM4Helper.Encrypt(value);
         _keyValues[name] = encryptedValue;
-        SaveKeys();
+        SaveKeysFile();
     }
 
     public static string GetKey(string name)
     {
         if (_keyValues.TryGetValue(name, out string encryptedValue))
         {
-            return encryptedValue; // 返回加密的值，只有在上层传入 123456 参数时才会解密输出
+            return encryptedValue;
         }
         return null;
     }
@@ -89,7 +152,7 @@ public static class KeyManager
     {
         if (_keyValues.Remove(name))
         {
-            SaveKeys();
+            SaveKeysFile();
             return true;
         }
         return false;
@@ -97,13 +160,18 @@ public static class KeyManager
 
     public static void ImportFromCSV(string csvFile)
     {
+        if (IsExpired)
+        {
+            UI.PrintError("Key A 已过期，无法导入。请先运行 key refresh");
+            return;
+        }
         if (!File.Exists(csvFile)) return;
         var lines = File.ReadAllLines(csvFile);
         for (int i = 1; i < lines.Length; i++) // 跳过标题
-        {
+            {
             var parts = lines[i].Split(',');
             if (parts.Length >= 5)
-            {
+                {
                 string name = parts[0].Trim('"');
                 string url = parts[1].Trim('"');
                 string username = parts[2].Trim('"');
@@ -112,45 +180,58 @@ public static class KeyManager
                 string key = $"{name}|{url}|{note}";
                 string value = $"{username}|{password}";
                 AddKey(key, value);
+                }
             }
         }
+
+    public static void RefreshKeys()
+    {
+        if (!_keysLoaded) 
+        {
+            UI.PrintError("密钥未加载，无法刷新。请检查密钥数据。");
+            return;
+        }
+
+        string newA = GenerateRandomKey();
+        int newVersion = _version + 1;
+        double ttlHours = double.TryParse(ConfigManager.GetValue("keyTtlHours", "0.01"), out double h) ? h : 0.01;
+        DateTime newTtl = DateTime.Now.AddHours(ttlHours);
+
+        // Save to config (newA in plain text)
+        ConfigManager.SetValue("keyA", newA);
+        ConfigManager.SetValue("keyVersion", newVersion.ToString());
+        ConfigManager.SetValue("keyTtl", newTtl.ToString("o"));
+
+        // Zero old key
+        if (!string.IsNullOrEmpty(_keyA))
+            CryptographicOperations.ZeroMemory(Encoding.UTF8.GetBytes(_keyA));
+
+        // Set new
+        _keyA = newA;
+        _version = newVersion;
+        _ttl = newTtl;
+        SM4Helper.SetKey(_keyA);
+
+        // Re-encrypt the keys file with new Key A
+        SaveKeysFile();
+
+        _isLoaded = true;
+
+        UI.PrintSuccess($"密钥已刷新，版本: {_version}");
     }
 
-    public static List<(string key, string username, string password)> SearchKeys(string keyword, bool reveal = false)
+    public static IEnumerable<(string key, string username, string password)> SearchKeys(string keyword, bool reveal)
     {
         var results = new List<(string, string, string)>();
         foreach (var kvp in _keyValues)
         {
-            string key = kvp.Key;
-            if (key.Contains(keyword, StringComparison.OrdinalIgnoreCase)) { 
-
-                    string encryptedValue = GetKey(key);
-                if (encryptedValue != null)
-                {
-                    if (reveal)
-                    {
-                        try
-                        {
-                            string plainValue = SM4Helper.Decrypt(encryptedValue);
-                            var valueParts = plainValue.Split('|');
-                            if (valueParts.Length >= 2)
-                            {
-                                results.Add((key, valueParts[0], valueParts[1]));
-                            }
-                            else results.Add((key, plainValue, string.Empty));
-                        }
-                        catch
-                        {
-                            // skip if cannot decrypt
-                        }
-                    }
-                    else
-                    {
-                        // not revealing: return encrypted blob in username field, leave password empty
-                        results.Add((key, encryptedValue, string.Empty));
-                    }
-                }
-                
+            if (kvp.Key.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            {
+                string value = reveal ? SM4Helper.Decrypt(kvp.Value) : kvp.Value;
+                var parts = value.Split(':');
+                string username = parts.Length > 0 ? parts[0] : "";
+                string password = parts.Length > 1 ? parts[1] : "";
+                results.Add((kvp.Key, username, password));
             }
         }
         return results;

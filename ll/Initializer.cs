@@ -98,9 +98,16 @@ namespace LL
             CommandManager.RegisterCommand(84, "cd", "设置默认项目目录（后续 git 命令在该目录执行）。用法: cd <path>", args => GitCommandHandler.SetDefaultProject(args));
             CommandManager.RegisterCommand(85, "proxy", "检测系统代理设置 (proxy check)", args => ProxyCommands.CheckProxy(args));
             CommandManager.RegisterCommand(86, "key", "密钥管理: add <name> <value>, get <name>, list, remove <name>, import <csv_file>, search <keyword>", args => KeyCommandHandler.Handle(args));
+            CommandManager.RegisterCommand(87, "batch-rename", "批量重命名/收集文件: rename <dir> [opts] 或 collect <dir> <level> <newfolder>", args => BatchRenameCommand.Handle(args));
+            CommandManager.RegisterCommand(88, "json-validate", "校验 JSON 格式: <json_string> 或 --file <file_path>", args => JsonValidator.Handle(args));
             CommandManager.RegisterCommand(89, "ssh", "SSH 操作: exec <cmd>, shell, upload <local> <remote>, download <remote> <local>, status", args => RemoteCommands.HandleSSH(args));
             CommandManager.RegisterCommand(90, "eventlog", "查看 Windows 事件日志 (eventlog [filter|open])", args => EventLogViewer.ViewEventLog(args));
             CommandManager.RegisterCommand(91, "sync", "文件夹同步: sync <source> <target> 或 sync stop", args => SyncManager.HandleSync(args));
+            CommandManager.RegisterCommand(92, "hash", "计算哈希: hash <algorithm> <text> 或 hash <algorithm> --file <file>", args => HashCalculator.Handle(args));
+            CommandManager.RegisterCommand(93, "passwd", "生成随机密码: passwd [length] [--no-symbols] [--no-numbers]", args => PasswordGenerator.Handle(args));
+            CommandManager.RegisterCommand(94, "base64", "Base64 编码/解码: base64 <encode|decode> <text> 或 --file <file>", args => Base64Tool.Handle(args));
+            CommandManager.RegisterCommand(95, "dice", "掷骰子: dice [sides] [count]", args => DiceRoller.Handle(args));
+            CommandManager.RegisterCommand(96, "art", "生成 ASCII 艺术文字: art <text>", args => AsciiArt.Handle(args));
             CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
             CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow(); LL.Native.NativeMethods.ShowWindow(hWnd, LL.Native.NativeMethods.SW_MINIMIZE); });
 
