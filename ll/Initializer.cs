@@ -45,9 +45,9 @@ namespace LL
             CommandManager.RegisterCommand(29, "env", "环境变量", args => UtilityCommands.Execute(new[] {"env"}));
             CommandManager.RegisterCommand(30, "clean", "清理", args => UtilityCommands.Execute(new[] {"clean"}));
             CommandManager.RegisterCommand(31, "hist", "历史记录", args => HistoryCommands.Show(args));
-
             CommandManager.RegisterCommand(32, "loc", "统计目录代码行数", args => CodeStatsCommands.Run(args));
             CommandManager.RegisterCommand(33, "template", "生成项目模板", args => TemplateCommands.Run(args));
+            CommandManager.RegisterCommand(34, "volume", "音量控制: mute, unmute, up, down, set <level>", args => VolumeCommands.Run(args));
 
             // 常用快捷操作（面向普通用户）
             CommandManager.RegisterCommand(40, "task", "任务管理器", _ => QuickCommands.OpenTaskManager());
