@@ -98,6 +98,7 @@ namespace LL
             CommandManager.RegisterCommand(84, "cd", "设置默认项目目录（后续 git 命令在该目录执行）。用法: cd <path>", args => GitCommandHandler.SetDefaultProject(args));
             CommandManager.RegisterCommand(85, "proxy", "检测系统代理设置 (proxy check)", args => ProxyCommands.CheckProxy(args));
             CommandManager.RegisterCommand(86, "key", "密钥管理: add <name> <value>, get <name>, list, remove <name>, import <csv_file>, search <keyword>", args => KeyCommandHandler.Handle(args));
+            CommandManager.RegisterCommand(87, "batch-rename", "批量重命名/收集文件: rename <dir> [opts] 或 collect <dir> <level> <newfolder>", args => BatchRenameCommand.Handle(args));
             CommandManager.RegisterCommand(89, "ssh", "SSH 操作: exec <cmd>, shell, upload <local> <remote>, download <remote> <local>, status", args => RemoteCommands.HandleSSH(args));
             CommandManager.RegisterCommand(90, "eventlog", "查看 Windows 事件日志 (eventlog [filter|open])", args => EventLogViewer.ViewEventLog(args));
             CommandManager.RegisterCommand(91, "sync", "文件夹同步: sync <source> <target> 或 sync stop", args => SyncManager.HandleSync(args));
