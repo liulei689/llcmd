@@ -1,16 +1,50 @@
 using System.Diagnostics;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using LL.Native;
 
 namespace LL;
 
 public static class PowerManager
 {
-    // 可调参数（按需修改）
-    public static double IdleEnterSeconds { get; set; } = 3*60; // 空闲超过多少秒进入“空闲状态”(用于触发守护/锁屏等)
-    public static double IdleExitSeconds { get; set; } = 1;   // 空闲低于多少秒认为恢复操作
-    public static double IdleLockSeconds { get; set; } = 4*60;  // 空闲达到多少秒自动锁屏
+    // 可调参数（从 config.json 读取）
+    public static double IdleEnterSeconds { get; private set; } = 3*60; // 空闲超过多少秒进入“空闲状态”(用于触发守护/锁屏等)
+    public static double IdleExitSeconds { get; private set; } = 1;   // 空闲低于多少秒认为恢复操作
+    public static double IdleLockSeconds { get; private set; } = 4*60;  // 空闲达到多少秒自动锁屏
+
+    static PowerManager()
+    {
+        LoadConfig();
+    }
+
+    private static void LoadConfig()
+    {
+        try
+        {
+            var configPath = Path.Combine(AppContext.BaseDirectory, "config.json");
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("PowerManager", out var powerManager))
+                {
+                    if (powerManager.TryGetProperty("IdleEnterSeconds", out var idleEnter))
+                        IdleEnterSeconds = idleEnter.GetDouble();
+                    if (powerManager.TryGetProperty("IdleExitSeconds", out var idleExit))
+                        IdleExitSeconds = idleExit.GetDouble();
+                    if (powerManager.TryGetProperty("IdleLockSeconds", out var idleLock))
+                        IdleLockSeconds = idleLock.GetDouble();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            // 静默失败，使用默认值
+            LogManager.Log("Error", "PowerManager", $"Failed to load config: {ex.Message}");
+        }
+    }
 
     private static CancellationTokenSource? _shutdownCts;
     private static Task? _shutdownTask;
