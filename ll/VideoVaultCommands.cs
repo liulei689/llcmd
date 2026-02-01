@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Net;
@@ -95,6 +96,43 @@ public static class VideoVaultCommands
         int fail = 0;
         long doneBytes = 0;
 
+        // 单行动态进度（减少刷屏、避免明显拖慢加密速度）
+        int lastRenderLen = 0;
+        var lastRenderAt = TimeSpan.Zero;
+
+        void RenderProgress(bool force = false)
+        {
+            if (!force)
+            {
+                var now = swAll.Elapsed;
+                if (now - lastRenderAt < TimeSpan.FromMilliseconds(200))
+                    return;
+                lastRenderAt = now;
+            }
+
+            var elapsed = swAll.Elapsed;
+            var speed = elapsed.TotalSeconds > 0.1 ? doneBytes / elapsed.TotalSeconds : 0;
+            var remainBytes = Math.Max(0, totalBytes - doneBytes);
+            var eta = speed > 1 ? TimeSpan.FromSeconds(remainBytes / speed) : TimeSpan.Zero;
+
+            double pct = totalBytes > 0 ? Math.Clamp((double)doneBytes / totalBytes, 0, 1) : 0;
+            const int barWidth = 30;
+            int filled = (int)Math.Round(pct * barWidth);
+            if (filled < 0) filled = 0;
+            if (filled > barWidth) filled = barWidth;
+            var bar = new string('#', filled) + new string('-', barWidth - filled);
+
+            var line = $"进度 [{bar}] {(pct * 100).ToString("0.0", CultureInfo.InvariantCulture)}%  {ok + fail}/{inputs.Count}  {Utils.FormatSize(doneBytes)}/{Utils.FormatSize(totalBytes)}  ETA {eta:hh\\:mm\\:ss}";
+
+            if (line.Length < lastRenderLen)
+                line = line + new string(' ', lastRenderLen - line.Length);
+            lastRenderLen = line.Length;
+
+            Console.Write("\r" + line);
+        }
+
+        RenderProgress(force: true);
+
         foreach (var file in inputs)
         {
             try
@@ -105,19 +143,19 @@ public static class VideoVaultCommands
                 ok++;
                 doneBytes += fi.Length;
 
-                var elapsed = swAll.Elapsed;
-                var speed = elapsed.TotalSeconds > 0.1 ? doneBytes / elapsed.TotalSeconds : 0;
-                var remainBytes = Math.Max(0, totalBytes - doneBytes);
-                var eta = speed > 1 ? TimeSpan.FromSeconds(remainBytes / speed) : TimeSpan.Zero;
-                UI.PrintResult("进度", $"{ok + fail}/{inputs.Count}  已完成 {Utils.FormatSize(doneBytes)} / {Utils.FormatSize(totalBytes)}  预计剩余 {eta:hh\\:mm\\:ss}");
-                UI.PrintSuccess($"已加密: {file} -> {dst}");
+                RenderProgress();
             }
             catch (Exception ex)
             {
                 fail++;
+                RenderProgress(force: true);
+                Console.WriteLine();
                 UI.PrintError($"加密失败: {file} ({ex.Message})");
+                RenderProgress(force: true);
             }
         }
+
+        RenderProgress(force: true);
 
         swAll.Stop();
         Console.WriteLine();
