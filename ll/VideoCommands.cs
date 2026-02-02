@@ -10,12 +10,13 @@ public static class VideoCommands
     {
         if (args.Length == 0)
         {
-            UI.PrintError("用法: video <merge|watermark|hls> ...");
+            UI.PrintError("用法: video <merge|watermark|hls|inspect> ...");
             UI.PrintInfo("  video merge <folder> | video merge <output> <input1> <input2> ...");
             UI.PrintInfo("  video watermark <text> <input.mp4> [output.mp4]");
             UI.PrintInfo("  video watermark <text> <folder>   (批量输出到 *_wm.mp4)");
             UI.PrintInfo("  video hls enc --in <file|folder> --key <key> [--out <dir>] [--seg 6]  (兼容旧位置参数)");
             UI.PrintInfo("  video hls play --in <m3u8|folder> --key <key> [--autoexit]           (兼容旧位置参数)");
+            UI.PrintInfo("  video inspect <file>  (分析文件是否含视频/容器特征，支持 .llv 等异常文件)");
             return;
         }
 
@@ -33,6 +34,10 @@ public static class VideoCommands
                 return;
             case "hls":
                 VideoHlsCommands.Run(rest);
+                return;
+            case "inspect":
+            case "probe":
+                VideoInspectCommands.Inspect(rest);
                 return;
             default:
                 UI.PrintError($"未知子命令: {args[0]}");
