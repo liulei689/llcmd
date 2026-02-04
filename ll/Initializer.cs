@@ -75,6 +75,7 @@ namespace LL
             CommandManager.RegisterCommand(60, "image", "分析图片像素和颜色", args => ImageAnalyzer.AnalyzeImage(args));
             CommandManager.RegisterCommand(61, "readbin", "读取文件二进制内容", args => BinaryFileReader.ReadBinary(args));
 
+
             CommandManager.RegisterCommand(62, "encv", "加密视频文件(生成 .llv)", args => VideoVaultCommands.Encrypt(args));
             CommandManager.RegisterCommand(63, "playv", "播放加密视频(.llv)", args => VideoVaultCommands.Play(args));
             CommandManager.RegisterCommand(64, "lsv", "列出加密视频(.llv)", args => VideoVaultCommands.List(args));
@@ -92,6 +93,7 @@ namespace LL
             CommandManager.RegisterCommand(72, "listen", "监听PostgreSQL通知", args => Program.ListenPostgreSQL(args));
             CommandManager.RegisterCommand(73, "notify", "发送PostgreSQL通知", args => Program.NotifyPostgreSQL(args));
             CommandManager.RegisterCommand(74, "unlisten", "停止监听PostgreSQL通知", _ => Program.UnlistenPostgreSQL());
+            CommandManager.RegisterCommand(75, "lock", "检测/解除文件占用: lock <file|dir> [-r] [--unlock] [-y]", args => FileLockCommands.Run(args));
 
             CommandManager.RegisterCommand(80, "encrypt", "加密", args => Program.EncryptCommand(args));
             CommandManager.RegisterCommand(81, "decrypt", "解密", args => Program.DecryptCommand(args));
