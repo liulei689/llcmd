@@ -1,19 +1,37 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-using Microsoft.Win32.SafeHandles;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace LL;
 
 /// <summary>
-/// 窗口管理器 - 窗口置顶、透明度控制、窗口列表等
+/// 窗口管理器 - 选中即操作模式
 /// </summary>
 public static class WindowManager
 {
+    private static IntPtr _pickedWindow = IntPtr.Zero;
+    private static string _pickedTitle = "";
+    private static DateTime _pickedTime;
+    private static readonly TimeSpan _pickTimeout = TimeSpan.FromMinutes(5);
+    
+    private static readonly HttpClient _httpClient = new();
+    private static readonly string _snapshotsFile;
+    private static List<WindowSnapshot> _snapshots = new();
+    
+    static WindowManager()
+    {
+        _snapshotsFile = Path.Combine(AppContext.BaseDirectory, "window_snapshots.json");
+        LoadSnapshots();
+    }
+
     /// <summary>
-    /// 处理窗口管理命令
+    /// 处理窗口管理命令 - 选中即操作
     /// </summary>
     public static void Handle(string[] args)
     {
@@ -23,59 +41,104 @@ public static class WindowManager
             return;
         }
 
-        var subCommand = args[0].ToLowerInvariant();
+        var cmd = args[0].ToLowerInvariant();
         var subArgs = args.Skip(1).ToArray();
 
         try
         {
-            switch (subCommand)
+            switch (cmd)
             {
-                case "top":
-                case "t":
-                    ToggleTopmost(subArgs);
-                    break;
-                case "list":
-                case "l":
-                    ListWindows(subArgs);
-                    break;
-                case "opacity":
-                case "o":
-                case "trans":
-                    SetWindowOpacity(subArgs);
-                    break;
-                case "min":
-                case "minimize":
-                    MinimizeAllExceptCurrent();
-                    break;
-                case "close":
-                case "c":
-                    CloseWindow(subArgs);
-                    break;
-                case "activate":
-                case "a":
-                    ActivateWindow(subArgs);
-                    break;
-                case "info":
-                case "i":
-                    ShowActiveWindowInfo();
-                    break;
-                case "move":
-                case "m":
-                    MoveWindow(subArgs);
-                    break;
-                case "resize":
-                case "r":
-                    ResizeWindow(subArgs);
-                    break;
+                // ===== 选择窗口 =====
+                case "pick" or "p":
+                    PickWindow(); break;
+                case "this" or ".":
+                    PickCurrentWindow(); break;
+                case "last":
+                    UseLastPicked(); break;
+                    
+                // ===== 选中窗口的操作（无需再指定窗口） =====
+                case "left" or "l":
+                    LayoutPicked("left"); break;
+                case "right" or "r":
+                    LayoutPicked("right"); break;
+                case "top" or "t":
+                    LayoutPicked("top"); break;
+                case "bottom" or "b":
+                    LayoutPicked("bottom"); break;
+                case "max" or "x":
+                    MaximizePicked(); break;
+                case "min" or "n":
+                    MinimizePicked(); break;
+                case "restore" or "rs":
+                    RestorePicked(); break;
+                case "center" or "c":
+                    CenterPicked(); break;
+                case "full" or "f":
+                    FullscreenPicked(); break;
+                    
+                // ===== 属性操作 =====
+                case "topmost" or "tm":
+                    ToggleTopmostPicked(); break;
+                case "opacity" or "o":
+                    SetOpacityPicked(subArgs); break;
+                case "fade":
+                    FadePicked(subArgs); break;
+                case "flash":
+                    FlashPicked(); break;
+                case "shake":
+                    ShakePicked(); break;
+                    
+                // ===== 关闭/隐藏 =====
+                case "close" or "cl":
+                    ClosePicked(); break;
+                case "hide" or "h":
+                    HidePicked(); break;
+                case "kill" or "k":
+                    KillPicked(); break;
+                    
+                // ===== 信息 =====
+                case "info" or "i":
+                    ShowPickedInfo(); break;
+                case "list" or "ls":
+                    ListWindows(subArgs); break;
+                    
+                // ===== 批量操作 =====
+                case "grid":
+                    ArrangeGrid(subArgs); break;
+                case "cascade":
+                    ArrangeCascade(); break;
+                case "tile":
+                    TileWindows(); break;
+                case "minothers":
+                    MinimizeOthers(); break;
+                case "boss":
+                    BossKey(); break;
+                    
+                // ===== 快照 =====
+                case "save" or "s":
+                    SaveSnapshot(subArgs); break;
+                case "load":
+                    LoadSnapshot(subArgs); break;
+                case "snapshots":
+                    ListSnapshots(); break;
+                case "del":
+                    DeleteSnapshot(subArgs); break;
+                    
+                // ===== 系统 =====
+                case "dark" or "d":
+                    ToggleDarkMode(); break;
+                case "refresh":
+                    RefreshDesktop(); break;
+                    
                 default:
-                    UI.PrintError($"未知子命令: {subCommand}");
+                    UI.PrintError($"未知命令: {cmd}");
                     ShowUsage();
                     break;
             }
         }
         catch (Exception ex)
         {
-            UI.PrintError($"窗口操作失败: {ex.Message}");
+            UI.PrintError($"操作失败: {ex.Message}");
         }
     }
 
@@ -84,464 +147,758 @@ public static class WindowManager
     /// </summary>
     private static void ShowUsage()
     {
-        UI.PrintHeader("窗口管理器");
-        UI.PrintItem("win top [title]", "置顶/取消置顶指定窗口（默认当前窗口）");
-        UI.PrintItem("win list [filter]", "列出所有可见窗口");
-        UI.PrintItem("win opacity <0-255> [title]", "设置窗口透明度（0=完全透明，255=不透明）");
-        UI.PrintItem("win min", "最小化除当前窗口外的所有窗口");
-        UI.PrintItem("win close <title|index>", "关闭指定窗口");
-        UI.PrintItem("win activate <title|index>", "激活指定窗口");
-        UI.PrintItem("win info", "显示当前活动窗口信息");
-        UI.PrintItem("win move <x> <y> [title]", "移动窗口到指定位置");
-        UI.PrintItem("win resize <width> <height> [title]", "调整窗口大小");
+        UI.PrintHeader("窗口管理器 - 选中即操作");
+        Console.WriteLine();
+        UI.PrintItem("核心流程: pick → left/right/max/close ...", "");
+        Console.WriteLine();
+        
+        Console.WriteLine("【选择窗口】");
+        UI.PrintItem("pick/p", "鼠标十字线选择窗口");
+        UI.PrintItem("this/.", "选择当前活动窗口");
+        UI.PrintItem("last", "使用上次选中的窗口");
+        Console.WriteLine();
+        
+        Console.WriteLine("【布局操作】");
+        UI.PrintItem("left/l", "选中窗口左半屏");
+        UI.PrintItem("right/r", "选中窗口右半屏");
+        UI.PrintItem("top/t", "选中窗口上半屏");
+        UI.PrintItem("bottom/b", "选中窗口下半屏");
+        UI.PrintItem("max/x", "最大化");
+        UI.PrintItem("min/n", "最小化");
+        UI.PrintItem("restore/rs", "恢复");
+        UI.PrintItem("center/c", "居中");
+        UI.PrintItem("full/f", "全屏(无边框)");
+        Console.WriteLine();
+        
+        Console.WriteLine("【属性效果】");
+        UI.PrintItem("topmost/tm", "置顶/取消置顶");
+        UI.PrintItem("opacity/o <0-255>", "透明度");
+        UI.PrintItem("fade <目标>", "渐变动画");
+        UI.PrintItem("flash", "闪烁提醒");
+        UI.PrintItem("shake", "抖动效果");
+        Console.WriteLine();
+        
+        Console.WriteLine("【关闭隐藏】");
+        UI.PrintItem("close/cl", "关闭选中窗口");
+        UI.PrintItem("hide/h", "隐藏窗口");
+        UI.PrintItem("kill/k", "强制结束进程");
+        Console.WriteLine();
+        
+        Console.WriteLine("【批量操作】");
+        UI.PrintItem("grid [n]", "网格排列所有窗口");
+        UI.PrintItem("cascade", "层叠排列");
+        UI.PrintItem("tile", "平铺排列");
+        UI.PrintItem("minothers", "最小化其他窗口");
+        UI.PrintItem("boss", "老板键(最小化全部)");
+        Console.WriteLine();
+        
+        Console.WriteLine("【快照】");
+        UI.PrintItem("save/s [name]", "保存布局快照");
+        UI.PrintItem("load <name>", "恢复快照");
+        UI.PrintItem("snapshots", "列出快照");
+        Console.WriteLine();
+        
+        Console.WriteLine("【示例】");
+        UI.PrintItem("win pick + win left", "选择窗口并左半屏");
+        UI.PrintItem("win this + win max", "当前窗口最大化");
+        UI.PrintItem("win pick + win o 150", "选择窗口设透明度");
     }
 
+    #region 窗口选择
+
     /// <summary>
-    /// 切换窗口置顶状态
+    /// 鼠标十字线选择窗口
     /// </summary>
-    private static void ToggleTopmost(string[] args)
+    private static void PickWindow()
     {
-        IntPtr hWnd;
-        string windowTitle;
-
-        if (args.Length > 0)
+        UI.PrintInfo("3秒后将用鼠标位置选择窗口...");
+        UI.PrintInfo("请移动鼠标到目标窗口上...");
+        
+        for (int i = 3; i > 0; i--)
         {
-            // 通过标题查找窗口
-            var title = string.Join(" ", args);
-            hWnd = FindWindowByTitle(title);
-            if (hWnd == IntPtr.Zero)
-            {
-                UI.PrintError($"未找到窗口: {title}");
-                return;
-            }
-            windowTitle = GetWindowText(hWnd);
+            Console.Write($"\r{i}... ");
+            Thread.Sleep(1000);
         }
-        else
+        Console.WriteLine("\rgo!   ");
+
+        var point = new POINT();
+        GetCursorPos(out point);
+        
+        // 从鼠标位置获取窗口
+        var hWnd = WindowFromPoint(point);
+        
+        // 获取根窗口（避免选到子控件）
+        var rootWnd = GetAncestor(hWnd, GA_ROOT);
+        if (rootWnd != IntPtr.Zero) hWnd = rootWnd;
+        
+        if (hWnd == IntPtr.Zero || !IsWindowVisible(hWnd))
         {
-            // 使用当前活动窗口
-            hWnd = NativeMethodsWin.GetForegroundWindow();
-            windowTitle = GetWindowText(hWnd);
+            UI.PrintError("未找到有效窗口");
+            return;
         }
 
-        // 获取当前置顶状态
-        var style = (uint)NativeMethodsWin.GetWindowLong(hWnd, NativeMethodsWin.GWL_EXSTYLE);
-        bool isTopmost = (style & NativeMethodsWin.WS_EX_TOPMOST) != 0;
-
-        // 切换置顶状态
-        var result = NativeMethodsWin.SetWindowPos(hWnd,
-            isTopmost ? NativeMethodsWin.HWND_NOTOPMOST : NativeMethodsWin.HWND_TOPMOST,
-            0, 0, 0, 0,
-            NativeMethodsWin.SWP_NOMOVE | NativeMethodsWin.SWP_NOSIZE | NativeMethodsWin.SWP_SHOWWINDOW);
-
-        if (result)
-        {
-            UI.PrintSuccess($"已{(isTopmost ? "取消置顶" : "置顶")}窗口: {windowTitle}");
-        }
-        else
-        {
-            UI.PrintError("操作失败");
-        }
+        SelectWindow(hWnd);
+        
+        // 高亮显示选中
+        FlashWindow(hWnd, 3);
+        UI.PrintSuccess($"已选中: {_pickedTitle}");
+        UI.PrintInfo("现在可以直接使用 left/right/max/close 等命令操作此窗口");
     }
 
     /// <summary>
-    /// 列出所有可见窗口
+    /// 选择当前活动窗口
     /// </summary>
+    private static void PickCurrentWindow()
+    {
+        var hWnd = GetForegroundWindow();
+        if (hWnd == IntPtr.Zero)
+        {
+            UI.PrintError("没有活动窗口");
+            return;
+        }
+        
+        SelectWindow(hWnd);
+        UI.PrintSuccess($"已选中当前窗口: {_pickedTitle}");
+    }
+
+    /// <summary>
+    /// 使用上次选中的窗口
+    /// </summary>
+    private static void UseLastPicked()
+    {
+        if (_pickedWindow == IntPtr.Zero || !IsWindow(_pickedWindow))
+        {
+            UI.PrintError("没有缓存的窗口，请先使用 pick 或 this");
+            return;
+        }
+        
+        if (DateTime.Now - _pickedTime > _pickTimeout)
+        {
+            UI.PrintInfo("选中已超时，请重新选择");
+            _pickedWindow = IntPtr.Zero;
+            return;
+        }
+        
+        // 确保窗口仍然存在
+        var title = GetWindowTextSafe(_pickedWindow);
+        if (string.IsNullOrEmpty(title))
+        {
+            UI.PrintError("缓存的窗口已关闭");
+            _pickedWindow = IntPtr.Zero;
+            return;
+        }
+        
+        _pickedTitle = title;
+        UI.PrintSuccess($"继续使用: {_pickedTitle}");
+        
+        // 激活窗口
+        SetForegroundWindow(_pickedWindow);
+        FlashWindow(_pickedWindow, 2);
+    }
+
+    private static void SelectWindow(IntPtr hWnd)
+    {
+        _pickedWindow = hWnd;
+        _pickedTitle = GetWindowTextSafe(hWnd);
+        _pickedTime = DateTime.Now;
+    }
+
+    private static IntPtr GetPickedWindow()
+    {
+        if (_pickedWindow == IntPtr.Zero || !IsWindow(_pickedWindow))
+        {
+            // 如果没有选中的，使用当前活动窗口
+            var current = GetForegroundWindow();
+            if (current != IntPtr.Zero)
+            {
+                SelectWindow(current);
+                return current;
+            }
+            throw new InvalidOperationException("没有选中的窗口，请先使用 win pick 或 win this");
+        }
+        
+        if (DateTime.Now - _pickedTime > _pickTimeout)
+        {
+            _pickedWindow = IntPtr.Zero;
+            throw new InvalidOperationException("选中已超时，请重新选择窗口");
+        }
+        
+        return _pickedWindow;
+    }
+
+    private static void FlashWindow(IntPtr hWnd, int times)
+    {
+        Task.Run(() =>
+        {
+            for (int i = 0; i < times; i++)
+            {
+                FlashWindow(hWnd, true);
+                Thread.Sleep(200);
+            }
+        });
+    }
+
+    #endregion
+
+    #region 布局操作
+
+    private static void LayoutPicked(string position)
+    {
+        var hWnd = GetPickedWindow();
+        var bounds = GetWindowScreenBounds(hWnd);
+        int x = bounds.X, y = bounds.Y, w = bounds.Width, h = bounds.Height;
+
+        switch (position)
+        {
+            case "left": w /= 2; break;
+            case "right": x += w / 2; w /= 2; break;
+            case "top": h /= 2; break;
+            case "bottom": y += h / 2; h /= 2; break;
+        }
+
+        // 还原窗口（如果最大化/最小化）
+        ShowWindow(hWnd, SW_RESTORE);
+        
+        SetWindowPos(hWnd, IntPtr.Zero, x, y, w, h, SWP_NOZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+        UI.PrintSuccess($"{_pickedTitle} → {position}");
+    }
+
+    private static void MaximizePicked()
+    {
+        var hWnd = GetPickedWindow();
+        ShowWindow(hWnd, SW_MAXIMIZE);
+        UI.PrintSuccess($"{_pickedTitle} → 最大化");
+    }
+
+    private static void MinimizePicked()
+    {
+        var hWnd = GetPickedWindow();
+        ShowWindow(hWnd, SW_MINIMIZE);
+        UI.PrintSuccess($"{_pickedTitle} → 最小化");
+    }
+
+    private static void RestorePicked()
+    {
+        var hWnd = GetPickedWindow();
+        ShowWindow(hWnd, SW_RESTORE);
+        UI.PrintSuccess($"{_pickedTitle} → 恢复");
+    }
+
+    private static void CenterPicked()
+    {
+        var hWnd = GetPickedWindow();
+        var rect = GetWindowRect(hWnd);
+        var screen = GetWindowScreenBounds(hWnd);
+
+        int w = rect.Right - rect.Left;
+        int h = rect.Bottom - rect.Top;
+        int x = screen.X + (screen.Width - w) / 2;
+        int y = screen.Y + (screen.Height - h) / 2;
+
+        ShowWindow(hWnd, SW_RESTORE);
+        SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_SHOWWINDOW);
+        UI.PrintSuccess($"{_pickedTitle} → 居中");
+    }
+
+    private static void FullscreenPicked()
+    {
+        var hWnd = GetPickedWindow();
+        var screen = GetWindowScreenBounds(hWnd);
+        
+        ShowWindow(hWnd, SW_RESTORE);
+        // 移除边框样式
+        var style = GetWindowLong(hWnd, GWL_STYLE);
+        SetWindowLong(hWnd, GWL_STYLE, (int)(style & ~WS_CAPTION & ~WS_THICKFRAME));
+        
+        SetWindowPos(hWnd, HWND_TOPMOST, screen.X, screen.Y, screen.Width, screen.Height, 
+            SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+        UI.PrintSuccess($"{_pickedTitle} → 全屏");
+    }
+
+    #endregion
+
+    #region 属性效果
+
+    private static void ToggleTopmostPicked()
+    {
+        var hWnd = GetPickedWindow();
+        var exStyle = (uint)GetWindowLong(hWnd, GWL_EXSTYLE);
+        bool isTopmost = (exStyle & WS_EX_TOPMOST) != 0;
+
+        SetWindowPos(hWnd, isTopmost ? HWND_NOTOPMOST : HWND_TOPMOST, 0, 0, 0, 0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+
+        UI.PrintSuccess($"{_pickedTitle} → {(isTopmost ? "取消置顶" : "置顶")}");
+    }
+
+    private static void SetOpacityPicked(string[] args)
+    {
+        if (args.Length == 0 || !byte.TryParse(args[0], out byte opacity))
+        {
+            UI.PrintError("用法: win o <0-255>");
+            return;
+        }
+
+        var hWnd = GetPickedWindow();
+        var style = GetWindowLong(hWnd, GWL_EXSTYLE);
+        SetWindowLong(hWnd, GWL_EXSTYLE, (int)(style | WS_EX_LAYERED));
+        SetLayeredWindowAttributes(hWnd, 0, opacity, LWA_ALPHA);
+
+        UI.PrintSuccess($"{_pickedTitle} → 透明度 {(int)(opacity / 255.0 * 100)}%");
+    }
+
+    private static void FadePicked(string[] args)
+    {
+        if (args.Length == 0 || !byte.TryParse(args[0], out byte target))
+        {
+            UI.PrintError("用法: win fade <0-255>");
+            return;
+        }
+
+        var hWnd = GetPickedWindow();
+        var title = _pickedTitle;
+        
+        var style = GetWindowLong(hWnd, GWL_EXSTYLE);
+        SetWindowLong(hWnd, GWL_EXSTYLE, (int)(style | WS_EX_LAYERED));
+
+        Task.Run(() =>
+        {
+            for (byte i = 255; i != target; i = (byte)(i > target ? i - 5 : i + 5))
+            {
+                SetLayeredWindowAttributes(hWnd, 0, i, LWA_ALPHA);
+                Thread.Sleep(20);
+            }
+            SetLayeredWindowAttributes(hWnd, 0, target, LWA_ALPHA);
+        });
+
+        UI.PrintSuccess($"{title} → 渐变到 {(int)(target / 255.0 * 100)}%");
+    }
+
+    private static void FlashPicked()
+    {
+        var hWnd = GetPickedWindow();
+        FlashWindow(hWnd, 5);
+        UI.PrintSuccess($"{_pickedTitle} → 闪烁");
+    }
+
+    private static void ShakePicked()
+    {
+        var hWnd = GetPickedWindow();
+        var rect = GetWindowRect(hWnd);
+        int x = rect.Left, y = rect.Top;
+
+        Task.Run(() =>
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                SetWindowPos(hWnd, IntPtr.Zero, x + (i % 2 == 0 ? 10 : -10), y, 0, 0,
+                    SWP_NOSIZE | SWP_NOZORDER);
+                Thread.Sleep(50);
+            }
+            SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+        });
+
+        UI.PrintSuccess($"{_pickedTitle} → 抖动");
+    }
+
+    #endregion
+
+    #region 关闭隐藏
+
+    private static void ClosePicked()
+    {
+        var hWnd = GetPickedWindow();
+        var title = _pickedTitle;
+        PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+        _pickedWindow = IntPtr.Zero;
+        UI.PrintSuccess($"已关闭: {title}");
+    }
+
+    private static void HidePicked()
+    {
+        var hWnd = GetPickedWindow();
+        ShowWindow(hWnd, SW_HIDE);
+        UI.PrintSuccess($"{_pickedTitle} → 隐藏");
+    }
+
+    private static void KillPicked()
+    {
+        var hWnd = GetPickedWindow();
+        GetWindowThreadProcessId(hWnd, out uint pid);
+        
+        try
+        {
+            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+            var name = proc.ProcessName;
+            proc.Kill();
+            _pickedWindow = IntPtr.Zero;
+            UI.PrintSuccess($"已结束进程: {name} (PID:{pid})");
+        }
+        catch (Exception ex)
+        {
+            UI.PrintError($"结束进程失败: {ex.Message}");
+        }
+    }
+
+    #endregion
+
+    #region 信息显示
+
+    private static void ShowPickedInfo()
+    {
+        var hWnd = GetPickedWindow();
+        var rect = GetWindowRect(hWnd);
+        var style = GetWindowLong(hWnd, GWL_STYLE);
+        var exStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
+
+        UI.PrintHeader("选中窗口信息");
+        UI.PrintResult("标题", _pickedTitle);
+        UI.PrintResult("句柄", $"0x{hWnd.ToInt64():X8}");
+        UI.PrintResult("位置", $"({rect.Left}, {rect.Top})");
+        UI.PrintResult("大小", $"{rect.Right - rect.Left} x {rect.Bottom - rect.Top}");
+        UI.PrintResult("置顶", (exStyle & WS_EX_TOPMOST) != 0 ? "是" : "否");
+        UI.PrintResult("最大化", IsZoomed(hWnd) ? "是" : "否");
+        UI.PrintResult("最小化", IsIconic(hWnd) ? "是" : "否");
+
+        GetWindowThreadProcessId(hWnd, out uint pid);
+        try
+        {
+            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+            UI.PrintResult("进程", $"{proc.ProcessName} (PID:{pid})");
+        }
+        catch { UI.PrintResult("PID", pid.ToString()); }
+    }
+
     private static void ListWindows(string[] args)
     {
         var filter = args.Length > 0 ? args[0].ToLowerInvariant() : null;
         var windows = GetVisibleWindows();
 
         if (filter != null)
-        {
             windows = windows.Where(w => w.Title.ToLowerInvariant().Contains(filter)).ToList();
-        }
-
-        if (windows.Count == 0)
-        {
-            UI.PrintInfo(filter != null ? $"未找到匹配 '{filter}' 的窗口" : "未找到可见窗口");
-            return;
-        }
 
         UI.PrintHeader($"窗口列表 (共 {windows.Count} 个)");
-        
-        // 获取当前活动窗口
-        var activeHwnd = NativeMethodsWin.GetForegroundWindow();
+        var active = GetForegroundWindow();
 
         for (int i = 0; i < windows.Count; i++)
         {
             var w = windows[i];
-            var isActive = w.Handle == activeHwnd ? " [活动]" : "";
-            var isTopmost = w.IsTopmost ? " [置顶]" : "";
-            UI.PrintItem($"{i + 1,2}. {w.Title}{isActive}{isTopmost}", $"{w.ProcessName} (PID: {w.ProcessId})");
+            var marker = w.Handle == active ? "▶ " : "  ";
+            var pickMarker = w.Handle == _pickedWindow ? "👆" : "  ";
+            var status = w.IsTopmost ? "📌" : (w.IsMinimized ? "🗕" : "  ");
+            UI.PrintItem($"{marker}{i + 1,2}.{pickMarker}{status} {w.Title}", $"{w.ProcessName}");
+        }
+        
+        if (_pickedWindow != IntPtr.Zero)
+        {
+            Console.WriteLine();
+            UI.PrintInfo($"当前选中: {_pickedTitle}");
         }
     }
 
-    /// <summary>
-    /// 设置窗口透明度
-    /// </summary>
-    private static void SetWindowOpacity(string[] args)
+    #endregion
+
+    #region 批量操作
+
+    private static void ArrangeGrid(string[] args)
     {
-        if (args.Length == 0 || !byte.TryParse(args[0], out byte opacity))
+        int cols = args.Length > 0 && int.TryParse(args[0], out int c) ? c : 2;
+        var windows = GetVisibleWindows().Where(w => !w.IsMinimized).Take(9).ToList();
+        if (windows.Count == 0) return;
+
+        var screen = GetPrimaryScreenBounds();
+        int rows = (int)Math.Ceiling((double)windows.Count / cols);
+        int cellW = screen.Width / cols;
+        int cellH = screen.Height / rows;
+
+        for (int i = 0; i < windows.Count; i++)
         {
-            UI.PrintError("请提供有效的透明度值 (0-255)");
-            UI.PrintInfo("用法: win opacity <0-255> [窗口标题]");
-            UI.PrintInfo("  0   = 完全透明");
-            UI.PrintInfo("  128 = 半透明");
-            UI.PrintInfo("  255 = 完全不透明");
-            return;
+            int row = i / cols;
+            int col = i % cols;
+            SetWindowPos(windows[i].Handle, IntPtr.Zero,
+                col * cellW, row * cellH, cellW, cellH,
+                SWP_NOZORDER | SWP_SHOWWINDOW);
         }
 
-        IntPtr hWnd;
-        string windowTitle;
-
-        if (args.Length > 1)
-        {
-            var title = string.Join(" ", args.Skip(1));
-            hWnd = FindWindowByTitle(title);
-            if (hWnd == IntPtr.Zero)
-            {
-                UI.PrintError($"未找到窗口: {title}");
-                return;
-            }
-            windowTitle = GetWindowText(hWnd);
-        }
-        else
-        {
-            hWnd = NativeMethodsWin.GetForegroundWindow();
-            windowTitle = GetWindowText(hWnd);
-        }
-
-        // 设置窗口样式以支持透明度
-        var style = NativeMethodsWin.GetWindowLong(hWnd, NativeMethodsWin.GWL_EXSTYLE);
-        NativeMethodsWin.SetWindowLong(hWnd, NativeMethodsWin.GWL_EXSTYLE, (int)((uint)style | NativeMethodsWin.WS_EX_LAYERED));
-
-        // 设置透明度
-        var result = NativeMethodsWin.SetLayeredWindowAttributes(hWnd, 0, opacity, NativeMethodsWin.LWA_ALPHA);
-
-        if (result)
-        {
-            var percent = (int)(opacity / 255.0 * 100);
-            UI.PrintSuccess($"已设置窗口 '{windowTitle}' 透明度为 {percent}%");
-        }
-        else
-        {
-            UI.PrintError("设置透明度失败");
-        }
+        UI.PrintSuccess($"网格排列 {windows.Count} 个窗口 ({cols}x{rows})");
     }
 
-    /// <summary>
-    /// 最小化除当前窗口外的所有窗口
-    /// </summary>
-    private static void MinimizeAllExceptCurrent()
+    private static void ArrangeCascade()
     {
-        var currentHwnd = NativeMethodsWin.GetForegroundWindow();
-        var windows = GetVisibleWindows();
-        int count = 0;
+        var windows = GetVisibleWindows().Where(w => !w.IsMinimized).Take(8).ToList();
+        if (windows.Count == 0) return;
 
+        int offset = 40;
+        for (int i = 0; i < windows.Count; i++)
+        {
+            SetWindowPos(windows[i].Handle, IntPtr.Zero,
+                i * offset, i * offset, 1000, 700,
+                SWP_NOZORDER | SWP_SHOWWINDOW);
+        }
+
+        UI.PrintSuccess($"层叠排列 {windows.Count} 个窗口");
+    }
+
+    private static void TileWindows()
+    {
+        var windows = GetVisibleWindows().Where(w => !w.IsMinimized).ToList();
+        if (windows.Count < 2) return;
+
+        var screen = GetPrimaryScreenBounds();
+        int cols = (int)Math.Ceiling(Math.Sqrt(windows.Count));
+        int rows = (int)Math.Ceiling((double)windows.Count / cols);
+        int w = screen.Width / cols;
+        int h = screen.Height / rows;
+
+        for (int i = 0; i < windows.Count; i++)
+        {
+            SetWindowPos(windows[i].Handle, IntPtr.Zero,
+                (i % cols) * w, (i / cols) * h, w, h,
+                SWP_NOZORDER | SWP_SHOWWINDOW);
+        }
+        
+        UI.PrintSuccess($"平铺 {windows.Count} 个窗口");
+    }
+
+    private static void MinimizeOthers()
+    {
+        var picked = GetPickedWindow();
+        var windows = GetVisibleWindows().Where(w => w.Handle != picked && !w.IsMinimized).ToList();
+        
         foreach (var w in windows)
+            ShowWindow(w.Handle, SW_MINIMIZE);
+            
+        UI.PrintSuccess($"已最小化其他 {windows.Count} 个窗口");
+    }
+
+    private static void BossKey()
+    {
+        var windows = GetVisibleWindows().Where(w => !w.IsMinimized).ToList();
+        foreach (var w in windows)
+            ShowWindow(w.Handle, SW_MINIMIZE);
+        UI.PrintSuccess($"老板键: 最小化 {windows.Count} 个窗口");
+    }
+
+    #endregion
+
+    #region 快照
+
+    private static void SaveSnapshot(string[] args)
+    {
+        var name = args.Length > 0 ? string.Join(" ", args) : $"snapshot_{DateTime.Now:MMdd_HHmmss}";
+        var windows = GetVisibleWindows().Where(w => !w.IsMinimized).ToList();
+
+        var snapshot = new WindowSnapshot
         {
-            if (w.Handle != currentHwnd && !w.IsMinimized)
+            Name = name,
+            CreatedAt = DateTime.Now,
+            Windows = windows.Select(w =>
             {
-                NativeMethodsWin.ShowWindow(w.Handle, NativeMethodsWin.SW_MINIMIZE);
-                count++;
+                var rect = GetWindowRect(w.Handle);
+                return new WindowState
+                {
+                    Title = w.Title,
+                    ProcessName = w.ProcessName,
+                    X = rect.Left,
+                    Y = rect.Top,
+                    Width = rect.Right - rect.Left,
+                    Height = rect.Bottom - rect.Top,
+                    IsTopmost = w.IsTopmost
+                };
+            }).ToList()
+        };
+
+        _snapshots.RemoveAll(s => s.Name == name);
+        _snapshots.Add(snapshot);
+        SaveSnapshots();
+        UI.PrintSuccess($"保存快照 '{name}' ({snapshot.Windows.Count} 个窗口)");
+    }
+
+    private static void LoadSnapshot(string[] args)
+    {
+        if (args.Length == 0)
+        {
+            UI.PrintError("用法: win load <快照名>");
+            return;
+        }
+
+        var name = string.Join(" ", args);
+        var snapshot = _snapshots.FirstOrDefault(s => s.Name == name);
+        if (snapshot == null)
+        {
+            UI.PrintError($"未找到快照: {name}");
+            return;
+        }
+
+        var windows = GetVisibleWindows();
+        int restored = 0;
+
+        foreach (var state in snapshot.Windows)
+        {
+            var match = windows.FirstOrDefault(w => 
+                w.Title == state.Title || w.ProcessName == state.ProcessName);
+
+            if (match.Handle != IntPtr.Zero)
+            {
+                SetWindowPos(match.Handle,
+                    state.IsTopmost ? HWND_TOPMOST : HWND_NOTOPMOST,
+                    state.X, state.Y, state.Width, state.Height, SWP_SHOWWINDOW);
+                restored++;
             }
         }
 
-        UI.PrintSuccess($"已最小化 {count} 个窗口");
+        UI.PrintSuccess($"恢复快照 '{name}' ({restored}/{snapshot.Windows.Count})");
     }
 
-    /// <summary>
-    /// 关闭指定窗口
-    /// </summary>
-    private static void CloseWindow(string[] args)
+    private static void ListSnapshots()
     {
-        if (args.Length == 0)
+        if (_snapshots.Count == 0)
         {
-            UI.PrintError("请提供窗口标题或序号");
+            UI.PrintInfo("暂无快照");
             return;
         }
 
-        var input = string.Join(" ", args);
-        var hWnd = FindWindowByInput(input);
-
-        if (hWnd == IntPtr.Zero)
+        UI.PrintHeader($"快照列表 (共 {_snapshots.Count} 个)");
+        foreach (var s in _snapshots.OrderByDescending(s => s.CreatedAt))
         {
-            UI.PrintError($"未找到窗口: {input}");
-            return;
+            UI.PrintItem($"• {s.Name}", $"{s.Windows.Count}窗口 {s.CreatedAt:MM-dd HH:mm}");
         }
+    }
 
-        var title = GetWindowText(hWnd);
+    private static void DeleteSnapshot(string[] args)
+    {
+        if (args.Length == 0) { UI.PrintError("用法: win del <快照名>"); return; }
         
-        // 发送关闭消息
-        NativeMethodsWin.PostMessage(hWnd, NativeMethodsWin.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
-        UI.PrintSuccess($"已关闭窗口: {title}");
+        var name = string.Join(" ", args);
+        if (_snapshots.RemoveAll(s => s.Name == name) > 0)
+        {
+            SaveSnapshots();
+            UI.PrintSuccess($"删除快照: {name}");
+        }
+        else
+        {
+            UI.PrintError($"未找到快照: {name}");
+        }
     }
 
-    /// <summary>
-    /// 激活指定窗口
-    /// </summary>
-    private static void ActivateWindow(string[] args)
+    private static void LoadSnapshots()
     {
-        if (args.Length == 0)
+        if (File.Exists(_snapshotsFile))
         {
-            UI.PrintError("请提供窗口标题或序号");
-            return;
+            try
+            {
+                var json = File.ReadAllText(_snapshotsFile);
+                var options = new JsonSerializerOptions { TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() };
+                _snapshots = JsonSerializer.Deserialize<List<WindowSnapshot>>(json, options) ?? new();
+            }
+            catch { _snapshots = new(); }
         }
-
-        var input = string.Join(" ", args);
-        var hWnd = FindWindowByInput(input);
-
-        if (hWnd == IntPtr.Zero)
-        {
-            UI.PrintError($"未找到窗口: {input}");
-            return;
-        }
-
-        var title = GetWindowText(hWnd);
-        
-        // 恢复窗口（如果最小化）
-        if (NativeMethodsWin.IsIconic(hWnd))
-        {
-            NativeMethodsWin.ShowWindow(hWnd, NativeMethodsWin.SW_RESTORE);
-        }
-
-        // 激活窗口
-        NativeMethodsWin.SetForegroundWindow(hWnd);
-        UI.PrintSuccess($"已激活窗口: {title}");
     }
 
-    /// <summary>
-    /// 显示当前活动窗口信息
-    /// </summary>
-    private static void ShowActiveWindowInfo()
+    private static void SaveSnapshots()
     {
-        var hWnd = NativeMethodsWin.GetForegroundWindow();
-        var title = GetWindowText(hWnd);
-        var rect = GetWindowRect(hWnd);
-        var style = NativeMethodsWin.GetWindowLong(hWnd, NativeMethodsWin.GWL_STYLE);
-        var exStyle = NativeMethodsWin.GetWindowLong(hWnd, NativeMethodsWin.GWL_EXSTYLE);
+        var options = new JsonSerializerOptions { WriteIndented = true, TypeInfoResolver = new System.Text.Json.Serialization.Metadata.DefaultJsonTypeInfoResolver() };
+        File.WriteAllText(_snapshotsFile, JsonSerializer.Serialize(_snapshots, options));
+    }
 
-        UI.PrintHeader("当前窗口信息");
-        UI.PrintResult("窗口句柄", $"0x{hWnd.ToInt64():X8}");
-        UI.PrintResult("窗口标题", title);
-        UI.PrintResult("位置", $"({rect.Left}, {rect.Top})");
-        UI.PrintResult("大小", $"{rect.Width} x {rect.Height}");
-        UI.PrintResult("置顶状态", (exStyle & NativeMethodsWin.WS_EX_TOPMOST) != 0 ? "是" : "否");
-        UI.PrintResult("最大化", NativeMethodsWin.IsZoomed(hWnd) ? "是" : "否");
-        UI.PrintResult("最小化", NativeMethodsWin.IsIconic(hWnd) ? "是" : "否");
+    #endregion
 
-        // 获取进程信息
-        _ = NativeMethodsWin.GetWindowThreadProcessId(hWnd, out uint pid);
+    #region 系统功能
+
+    private static void ToggleDarkMode()
+    {
         try
         {
-            var process = System.Diagnostics.Process.GetProcessById((int)pid);
-            UI.PrintResult("进程名", process.ProcessName);
-            UI.PrintResult("进程ID", pid.ToString());
-            UI.PrintResult("程序路径", process.MainModule?.FileName ?? "未知");
-        }
-        catch
-        {
-            UI.PrintResult("进程ID", pid.ToString());
-        }
-    }
-
-    /// <summary>
-    /// 移动窗口
-    /// </summary>
-    private static void MoveWindow(string[] args)
-    {
-        if (args.Length < 2 || !int.TryParse(args[0], out int x) || !int.TryParse(args[1], out int y))
-        {
-            UI.PrintError("请提供有效的坐标");
-            UI.PrintInfo("用法: win move <x> <y> [窗口标题]");
-            return;
-        }
-
-        IntPtr hWnd;
-        string windowTitle;
-
-        if (args.Length > 2)
-        {
-            var title = string.Join(" ", args.Skip(2));
-            hWnd = FindWindowByTitle(title);
-            if (hWnd == IntPtr.Zero)
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize", true);
+            if (key != null)
             {
-                UI.PrintError($"未找到窗口: {title}");
-                return;
+                var current = key.GetValue("AppsUseLightTheme");
+                bool isLight = current != null && (int)current == 1;
+                key.SetValue("AppsUseLightTheme", isLight ? 0 : 1);
+                key.SetValue("SystemUsesLightTheme", isLight ? 0 : 1);
+                UI.PrintSuccess(isLight ? "已切换到深色模式" : "已切换到浅色模式");
             }
-            windowTitle = GetWindowText(hWnd);
         }
-        else
+        catch (Exception ex)
         {
-            hWnd = NativeMethodsWin.GetForegroundWindow();
-            windowTitle = GetWindowText(hWnd);
-        }
-
-        var rect = GetWindowRect(hWnd);
-        var result = NativeMethodsWin.SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0,
-            NativeMethodsWin.SWP_NOSIZE | NativeMethodsWin.SWP_NOZORDER | NativeMethodsWin.SWP_SHOWWINDOW);
-
-        if (result)
-        {
-            UI.PrintSuccess($"已移动窗口 '{windowTitle}' 到 ({x}, {y})");
-        }
-        else
-        {
-            UI.PrintError("移动窗口失败");
+            UI.PrintError($"切换失败: {ex.Message}");
         }
     }
 
-    /// <summary>
-    /// 调整窗口大小
-    /// </summary>
-    private static void ResizeWindow(string[] args)
+    private static void RefreshDesktop()
     {
-        if (args.Length < 2 || !int.TryParse(args[0], out int width) || !int.TryParse(args[1], out int height))
+        // 发送 F5 到桌面
+        var hWnd = FindWindow("Progman", "Program Manager");
+        if (hWnd != IntPtr.Zero)
         {
-            UI.PrintError("请提供有效的宽高");
-            UI.PrintInfo("用法: win resize <width> <height> [窗口标题]");
-            return;
+            PostMessage(hWnd, 0x0112, (IntPtr)(IntPtr)0xF140, IntPtr.Zero); // WM_SYSCOMMAND SC_MINIMIZE
         }
-
-        IntPtr hWnd;
-        string windowTitle;
-
-        if (args.Length > 2)
-        {
-            var title = string.Join(" ", args.Skip(2));
-            hWnd = FindWindowByTitle(title);
-            if (hWnd == IntPtr.Zero)
-            {
-                UI.PrintError($"未找到窗口: {title}");
-                return;
-            }
-            windowTitle = GetWindowText(hWnd);
-        }
-        else
-        {
-            hWnd = NativeMethodsWin.GetForegroundWindow();
-            windowTitle = GetWindowText(hWnd);
-        }
-
-        var rect = GetWindowRect(hWnd);
-        var result = NativeMethodsWin.SetWindowPos(hWnd, IntPtr.Zero, 0, 0, width, height,
-            NativeMethodsWin.SWP_NOMOVE | NativeMethodsWin.SWP_NOZORDER | NativeMethodsWin.SWP_SHOWWINDOW);
-
-        if (result)
-        {
-            UI.PrintSuccess($"已调整窗口 '{windowTitle}' 大小为 {width} x {height}");
-        }
-        else
-        {
-            UI.PrintError("调整窗口大小失败");
-        }
+        UI.PrintSuccess("桌面已刷新");
     }
+
+    #endregion
 
     #region 辅助方法
 
-    /// <summary>
-    /// 通过输入查找窗口（支持序号或标题）
-    /// </summary>
-    private static IntPtr FindWindowByInput(string input)
-    {
-        // 尝试解析为序号
-        if (int.TryParse(input, out int index))
-        {
-            var windows = GetVisibleWindows();
-            if (index > 0 && index <= windows.Count)
-            {
-                return windows[index - 1].Handle;
-            }
-        }
-
-        // 按标题查找
-        return FindWindowByTitle(input);
-    }
-
-    /// <summary>
-    /// 通过标题查找窗口
-    /// </summary>
-    private static IntPtr FindWindowByTitle(string title)
-    {
-        var windows = GetVisibleWindows();
-        
-        // 精确匹配
-        var exact = windows.FirstOrDefault(w => 
-            w.Title.Equals(title, StringComparison.OrdinalIgnoreCase));
-        if (exact.Handle != IntPtr.Zero) return exact.Handle;
-
-        // 包含匹配
-        var contains = windows.FirstOrDefault(w => 
-            w.Title.ToLowerInvariant().Contains(title.ToLowerInvariant()));
-        return contains.Handle;
-    }
-
-    /// <summary>
-    /// 获取窗口文本
-    /// </summary>
-    private static string GetWindowText(IntPtr hWnd)
+    private static string GetWindowTextSafe(IntPtr hWnd)
     {
         var sb = new StringBuilder(256);
-        NativeMethodsWin.GetWindowText(hWnd, sb, sb.Capacity);
+        GetWindowText(hWnd, sb, sb.Capacity);
         return sb.ToString();
     }
 
-    /// <summary>
-    /// 获取窗口矩形
-    /// </summary>
-    private static (int Left, int Top, int Width, int Height) GetWindowRect(IntPtr hWnd)
+    private static RECT GetWindowRect(IntPtr hWnd)
     {
-        NativeMethodsWin.GetWindowRect(hWnd, out NativeMethodsWin.RECT rect);
-        return (rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
+        GetWindowRect(hWnd, out RECT rect);
+        return rect;
     }
 
-    /// <summary>
-    /// 获取所有可见窗口
-    /// </summary>
     private static List<WindowInfo> GetVisibleWindows()
     {
         var windows = new List<WindowInfo>();
-        
-        NativeMethodsWin.EnumWindows((hWnd, lParam) =>
+        EnumWindows((hWnd, lParam) =>
         {
-            // 检查窗口是否可见
-            if (!NativeMethodsWin.IsWindowVisible(hWnd))
-                return true;
+            if (!IsWindowVisible(hWnd)) return true;
+            var title = GetWindowTextSafe(hWnd);
+            if (string.IsNullOrWhiteSpace(title)) return true;
 
-            // 获取窗口标题
-            var title = GetWindowText(hWnd);
-            if (string.IsNullOrWhiteSpace(title))
-                return true;
+            GetWindowThreadProcessId(hWnd, out uint pid);
+            string proc = "Unknown";
+            try { proc = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName; } catch { }
 
-            // 获取进程信息
-            uint pid = 0;
-            NativeMethodsWin.GetWindowThreadProcessId(hWnd, out pid);
-            
-            string processName = "Unknown";
-            try
-            {
-                processName = System.Diagnostics.Process.GetProcessById((int)pid).ProcessName;
-            }
-            catch { }
-
-            // 检查置顶状态
-            var exStyle = NativeMethodsWin.GetWindowLong(hWnd, NativeMethodsWin.GWL_EXSTYLE);
-            bool isTopmost = (exStyle & NativeMethodsWin.WS_EX_TOPMOST) != 0;
-
+            var exStyle = GetWindowLong(hWnd, GWL_EXSTYLE);
             windows.Add(new WindowInfo
             {
                 Handle = hWnd,
                 Title = title,
                 ProcessId = (int)pid,
-                ProcessName = processName,
-                IsTopmost = isTopmost,
-                IsMinimized = NativeMethodsWin.IsIconic(hWnd)
+                ProcessName = proc,
+                IsTopmost = (exStyle & WS_EX_TOPMOST) != 0,
+                IsMinimized = IsIconic(hWnd)
             });
-
             return true;
         }, IntPtr.Zero);
 
         return windows;
+    }
+
+    private static (int X, int Y, int Width, int Height) GetPrimaryScreenBounds()
+    {
+        return (0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
+    }
+
+    private static (int X, int Y, int Width, int Height) GetWindowScreenBounds(IntPtr hWnd)
+    {
+        MONITORINFO mi = new() { cbSize = Marshal.SizeOf(typeof(MONITORINFO)) };
+        IntPtr hMonitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+        if (GetMonitorInfo(hMonitor, ref mi))
+        {
+            return (mi.rcWork.Left, mi.rcWork.Top, 
+                mi.rcWork.Right - mi.rcWork.Left, 
+                mi.rcWork.Bottom - mi.rcWork.Top);
+        }
+        return GetPrimaryScreenBounds();
     }
 
     private struct WindowInfo
@@ -554,87 +911,95 @@ public static class WindowManager
         public bool IsMinimized;
     }
 
-    #endregion
-}
-
-/// <summary>
-/// 窗口管理相关的 NativeMethods
-/// </summary>
-internal static partial class NativeMethodsWin
-{
-    // 常量定义
-    public const int GWL_STYLE = -16;
-    public const int GWL_EXSTYLE = -20;
-    public const uint WS_EX_TOPMOST = 0x00000008;
-    public const uint WS_EX_LAYERED = 0x00080000;
-    public const uint LWA_ALPHA = 0x00000002;
-    public const uint WM_CLOSE = 0x0010;
-    public const uint SWP_NOSIZE = 0x0001;
-    public const uint SWP_NOMOVE = 0x0002;
-    public const uint SWP_NOZORDER = 0x0004;
-    public const uint SWP_SHOWWINDOW = 0x0040;
-    public const int SW_MINIMIZE = 6;
-    public const int SW_RESTORE = 9;
-
-    public static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
-    public static readonly IntPtr HWND_NOTOPMOST = new IntPtr(-2);
-
-    // 结构定义
-    public struct RECT
+    private class WindowSnapshot
     {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
+        public string Name { get; set; } = "";
+        public DateTime CreatedAt { get; set; }
+        public List<WindowState> Windows { get; set; } = new();
     }
 
-    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+    private class WindowState
+    {
+        public string Title { get; set; } = "";
+        public string ProcessName { get; set; } = "";
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public bool IsTopmost { get; set; }
+    }
 
-    // API 导入
-    [DllImport("user32.dll")]
-    public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter,
-        int X, int Y, int cx, int cy, uint uFlags);
+    #endregion
 
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    #region Native API
 
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+    private const int GWL_STYLE = -16;
+    private const int GWL_EXSTYLE = -20;
+    private const uint WS_EX_TOPMOST = 0x00000008;
+    private const uint WS_EX_LAYERED = 0x00080000;
+    private const uint WS_CAPTION = 0x00C00000;
+    private const uint WS_THICKFRAME = 0x00040000;
+    private const uint LWA_ALPHA = 0x00000002;
+    private const uint WM_CLOSE = 0x0010;
+    private const uint SWP_NOSIZE = 0x0001;
+    private const uint SWP_NOMOVE = 0x0002;
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_SHOWWINDOW = 0x0040;
+    private const uint SWP_FRAMECHANGED = 0x0020;
+    private const int SW_MINIMIZE = 6;
+    private const int SW_RESTORE = 9;
+    private const int SW_MAXIMIZE = 3;
+    private const int SW_HIDE = 0;
+    private const int SW_SHOW = 5;
+    private const int SM_CXSCREEN = 0;
+    private const int SM_CYSCREEN = 1;
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
+    private const int GA_ROOT = 2;
 
-    [DllImport("user32.dll")]
-    public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey,
-        byte bAlpha, uint dwFlags);
+    private static readonly IntPtr HWND_TOPMOST = new(-1);
+    private static readonly IntPtr HWND_NOTOPMOST = new(-2);
 
-    [DllImport("user32.dll")]
-    public static extern IntPtr GetForegroundWindow();
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
 
-    [DllImport("user32.dll")]
-    public static extern bool SetForegroundWindow(IntPtr hWnd);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT { public int X, Y; }
 
-    [DllImport("user32.dll")]
-    public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
 
-    [DllImport("user32.dll")]
-    public static extern bool IsWindowVisible(IntPtr hWnd);
+    private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
-    [DllImport("user32.dll")]
-    public static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+    [DllImport("user32.dll")] private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool IsZoomed(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+    [DllImport("user32.dll")] private static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+    [DllImport("user32.dll")] private static extern bool FlashWindow(IntPtr hWnd, bool bInvert);
+    [DllImport("user32.dll")] private static extern bool GetCursorPos(out POINT lpPoint);
+    [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(POINT point);
+    [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int nIndex);
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
-    [DllImport("user32.dll")]
-    public static extern bool IsZoomed(IntPtr hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
-    public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-
-    [DllImport("user32.dll")]
-    public static extern bool PostMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+    #endregion
 }
