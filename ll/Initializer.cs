@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Linq;
 
 namespace LL
 {
@@ -32,18 +33,18 @@ namespace LL
             CommandManager.RegisterCommand(19, "settime", "修改系统时间", args => SystemCommands.SetTime(args));
 
             // 实用工具（扁平化：直接用命令名，不用 util 前缀）
-            CommandManager.RegisterCommand(20, "ps", "进程列表", args => UtilityCommands.Execute(new[] {"ps"}));
-            CommandManager.RegisterCommand(21, "kill", "结束进程", args => UtilityCommands.Execute(new[] {"kill"}));
-            CommandManager.RegisterCommand(22, "port", "端口检测", args => UtilityCommands.Execute(new[] {"port"}));
+            CommandManager.RegisterCommand(20, "ps", "进程列表", args => UtilityCommands.Execute(new[] { "ps" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(21, "kill", "结束进程", args => UtilityCommands.Execute(new[] { "kill" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(22, "port", "端口检测", args => UtilityCommands.Execute(new[] { "port" }.Concat(args).ToArray()));
             // ip 已在上面手动编号
-            CommandManager.RegisterCommand(23, "curl", "HTTP GET", args => UtilityCommands.Execute(new[] {"curl"}));
-            CommandManager.RegisterCommand(24, "dns", "DNS 解析", args => UtilityCommands.Execute(new[] {"dns"}));
-            CommandManager.RegisterCommand(25, "find", "查找文件", args => UtilityCommands.Execute(new[] {"find"}));
-            CommandManager.RegisterCommand(26, "watch", "监听目录", args => UtilityCommands.Execute(new[] {"watch"}));
-            CommandManager.RegisterCommand(27, "clip", "剪贴板", args => UtilityCommands.Execute(new[] {"clip"}));
-            CommandManager.RegisterCommand(28, "path", "PATH", args => UtilityCommands.Execute(new[] {"path"}));
-            CommandManager.RegisterCommand(29, "env", "环境变量", args => UtilityCommands.Execute(new[] {"env"}));
-            CommandManager.RegisterCommand(30, "clean", "清理", args => UtilityCommands.Execute(new[] {"clean"}));
+            CommandManager.RegisterCommand(23, "curl", "HTTP GET", args => UtilityCommands.Execute(new[] { "curl" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(24, "dns", "DNS 解析", args => UtilityCommands.Execute(new[] { "dns" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(25, "find", "查找文件", args => UtilityCommands.Execute(new[] { "find" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(26, "watch", "监听目录", args => UtilityCommands.Execute(new[] { "watch" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(27, "clip", "剪贴板", args => UtilityCommands.Execute(new[] { "clip" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(28, "path", "PATH", args => UtilityCommands.Execute(new[] { "path" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(29, "env", "环境变量", args => UtilityCommands.Execute(new[] { "env" }.Concat(args).ToArray()));
+            CommandManager.RegisterCommand(30, "clean", "清理", args => UtilityCommands.Execute(new[] { "clean" }.Concat(args).ToArray()));
             CommandManager.RegisterCommand(31, "hist", "历史记录", args => HistoryCommands.Show(args));
             CommandManager.RegisterCommand(32, "loc", "统计目录代码行数", args => CodeStatsCommands.Run(args));
             CommandManager.RegisterCommand(33, "template", "生成项目模板", args => TemplateCommands.Run(args));

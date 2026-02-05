@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace LL;
 
@@ -67,7 +68,7 @@ public static class UtilityCommands
     private static void PrintHelp()
     {
         UI.PrintHeader("实用工具箱 util");
-        UI.PrintInfo("用法: util <子命令> [参数]");
+        UI.PrintInfo("用法: <子命令> [参数]");
         Console.WriteLine();
         UI.PrintResult("ps [关键词]", "列进程(按名称过滤)");
         UI.PrintResult("kill <pid|name>", "结束进程");
@@ -113,7 +114,14 @@ public static class UtilityCommands
         {
             if (args.Length == 0)
             {
-                UI.PrintError("用法: util kill <pid|name>");
+                UI.PrintError("用法: kill <pid|name>");
+                UI.PrintInfo("      kill --port <port>");
+                return;
+            }
+
+            if ((args[0] is "--port" or "-p") && args.Length >= 2 && int.TryParse(args[1], out var port))
+            {
+                KillByPort(port);
                 return;
             }
 
@@ -157,6 +165,96 @@ public static class UtilityCommands
             }
         }
 
+        private static void KillByPort(int port)
+        {
+            try
+            {
+                var text = RunAndCapture("netstat", "-ano -p tcp");
+                var pids = new HashSet<int>();
+
+                foreach (var line in text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    // Example:
+                    // TCP    0.0.0.0:80     0.0.0.0:0      LISTENING       1234
+                    if (!line.StartsWith("TCP", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var parts = Regex.Split(line.Trim(), "\\s+");
+                    if (parts.Length < 5)
+                        continue;
+
+                    var local = parts[1];
+                    if (!TryParsePortFromEndpoint(local, out var localPort) || localPort != port)
+                        continue;
+
+                    if (int.TryParse(parts[^1], out var pid) && pid > 0)
+                        pids.Add(pid);
+                }
+
+                if (pids.Count == 0)
+                {
+                    UI.PrintInfo($"未找到监听端口 {port} 的进程。");
+                    return;
+                }
+
+                foreach (var pid in pids)
+                {
+                    try
+                    {
+                        var p = System.Diagnostics.Process.GetProcessById(pid);
+                        p.Kill(true);
+                        UI.PrintSuccess($"已结束端口 {port} 进程: {p.ProcessName} (PID={pid})");
+                    }
+                    catch (Exception ex)
+                    {
+                        UI.PrintError($"结束端口 {port} 进程失败 PID={pid}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UI.PrintError($"按端口结束失败: {ex.Message}");
+            }
+        }
+
+        private static bool TryParsePortFromEndpoint(string endpoint, out int port)
+        {
+            port = 0;
+
+            // IPv6 in netstat can be like [::]:80
+            endpoint = endpoint.Trim();
+            if (endpoint.StartsWith("[", StringComparison.Ordinal) && endpoint.Contains("]:", StringComparison.Ordinal))
+            {
+                var idx = endpoint.LastIndexOf(":", StringComparison.Ordinal);
+                if (idx > 0 && int.TryParse(endpoint[(idx + 1)..], out port))
+                    return true;
+                return false;
+            }
+
+            var last = endpoint.LastIndexOf(':');
+            if (last <= 0) return false;
+            return int.TryParse(endpoint[(last + 1)..], out port);
+        }
+
+        private static string RunAndCapture(string fileName, string arguments)
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(fileName, arguments)
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8
+            };
+
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p == null) return "";
+            var output = p.StandardOutput.ReadToEnd();
+            var err = p.StandardError.ReadToEnd();
+            p.WaitForExit(5000);
+            return string.IsNullOrWhiteSpace(output) ? err : output;
+        }
+
         private static T Safe<T>(Func<T> fn, T fallback)
         {
             try { return fn(); } catch { return fallback; }
@@ -187,7 +285,7 @@ public static class UtilityCommands
         {
             if (args.Length == 0)
             {
-                UI.PrintError("用法: util dns <domain>");
+                UI.PrintError("用法: dns <domain>");
                 return;
             }
 
@@ -209,7 +307,7 @@ public static class UtilityCommands
         {
             if (args.Length == 0)
             {
-                UI.PrintError("用法: util curl <url>");
+                UI.PrintError("用法: curl <url>");
                 return;
             }
 
@@ -241,7 +339,7 @@ public static class UtilityCommands
         {
             if (args.Length == 0 || !int.TryParse(args[0], out var port))
             {
-                UI.PrintError("用法: util port <端口>");
+                UI.PrintError("用法: port <端口>");
                 return;
             }
 
@@ -259,7 +357,7 @@ public static class UtilityCommands
         {
             if (args.Length == 0)
             {
-                UI.PrintError("用法: util find <关键字> [目录]");
+                UI.PrintError("用法: find <关键字> [目录]");
                 return;
             }
 
@@ -287,7 +385,7 @@ public static class UtilityCommands
         {
             if (args.Length == 0)
             {
-                UI.PrintError("用法: util watch <目录>");
+                UI.PrintError("用法: watch <目录>");
                 return;
             }
 
@@ -320,13 +418,13 @@ public static class UtilityCommands
         {
             if (args.Length == 0)
             {
-                UI.PrintError("用法: util clean temp");
+                UI.PrintError("用法: clean temp");
                 return;
             }
 
             if (!args[0].Equals("temp", StringComparison.OrdinalIgnoreCase))
             {
-                UI.PrintError("目前仅支持: util clean temp");
+                UI.PrintError("目前仅支持: clean temp");
                 return;
             }
 
