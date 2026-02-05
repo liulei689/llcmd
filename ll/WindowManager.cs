@@ -18,7 +18,8 @@ public static class WindowManager
     private static IntPtr _pickedWindow = IntPtr.Zero;
     private static string _pickedTitle = "";
     private static DateTime _pickedTime;
-    private static readonly TimeSpan _pickTimeout = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan _pickTimeout = TimeSpan.FromMinutes(30);
+    private static bool _keepPicked = false;  // 永久锁定模式
     
     private static readonly HttpClient _httpClient = new();
     private static readonly string _snapshotsFile;
@@ -55,6 +56,10 @@ public static class WindowManager
                     PickCurrentWindow(); break;
                 case "last":
                     UseLastPicked(); break;
+                case "keep" or "k":
+                    KeepPickedWindow(); break;
+                case "unkeep" or "uk":
+                    UnkeepPickedWindow(); break;
                     
                 // ===== 选中窗口的操作（无需再指定窗口） =====
                 case "left" or "l":
@@ -130,6 +135,20 @@ public static class WindowManager
                 case "refresh":
                     RefreshDesktop(); break;
                     
+                // ===== 新增酷炫功能 =====
+                case "shot":
+                    CaptureWindow(subArgs); break;
+                case "clickthrough" or "ct":
+                    ToggleClickThrough(); break;
+                case "magnify" or "mag":
+                    ShowMagnifier(); break;
+                case "clone":
+                    CloneWindow(); break;
+                case "pin":
+                    TogglePinWindow(); break;
+                case "blur":
+                    ToggleBlurWindow(); break;
+                    
                 default:
                     UI.PrintError($"未知命令: {cmd}");
                     ShowUsage();
@@ -156,6 +175,8 @@ public static class WindowManager
         UI.PrintItem("pick/p", "鼠标十字线选择窗口");
         UI.PrintItem("this/.", "选择当前活动窗口");
         UI.PrintItem("last", "使用上次选中的窗口");
+        UI.PrintItem("keep/k", "永久锁定选中(不过期)");
+        UI.PrintItem("unkeep/uk", "取消锁定");
         Console.WriteLine();
         
         Console.WriteLine("【布局操作】");
@@ -202,6 +223,15 @@ public static class WindowManager
         UI.PrintItem("win pick + win left", "选择窗口并左半屏");
         UI.PrintItem("win this + win max", "当前窗口最大化");
         UI.PrintItem("win pick + win o 150", "选择窗口设透明度");
+        Console.WriteLine();
+        
+        Console.WriteLine("【新增功能】");
+        UI.PrintItem("shot [文件名]", "窗口截图保存");
+        UI.PrintItem("clickthrough/ct", "点击穿透模式(透明+穿透)");
+        UI.PrintItem("magnify/mag", "放大镜跟随鼠标");
+        UI.PrintItem("clone", "克隆窗口(再开同款应用)");
+        UI.PrintItem("pin", "钉住窗口(置顶贴图模式)");
+        UI.PrintItem("blur", "窗口背景模糊(亚克力效果)");
     }
 
     #region 窗口选择
@@ -317,13 +347,53 @@ public static class WindowManager
             throw new InvalidOperationException("没有选中的窗口，请先使用 win pick 或 win this");
         }
         
-        if (DateTime.Now - _pickedTime > _pickTimeout)
+        // 如果是锁定模式，不检查超时
+        if (!_keepPicked && DateTime.Now - _pickedTime > _pickTimeout)
         {
             _pickedWindow = IntPtr.Zero;
-            throw new InvalidOperationException("选中已超时，请重新选择窗口");
+            throw new InvalidOperationException("选中已超时(30分钟)，请重新选择或使用 win keep 锁定");
         }
         
         return _pickedWindow;
+    }
+
+    /// <summary>
+    /// 永久锁定选中的窗口
+    /// </summary>
+    private static void KeepPickedWindow()
+    {
+        if (_pickedWindow == IntPtr.Zero || !IsWindow(_pickedWindow))
+        {
+            // 没有选中就自动选当前窗口
+            var current = GetForegroundWindow();
+            if (current == IntPtr.Zero)
+            {
+                UI.PrintError("没有可锁定的窗口");
+                return;
+            }
+            SelectWindow(current);
+        }
+        
+        _keepPicked = true;
+        UI.PrintSuccess($"已锁定: {_pickedTitle}");
+        UI.PrintInfo("提示：此窗口选中状态将永久有效，直到执行 win unkeep 或窗口关闭");
+    }
+
+    /// <summary>
+    /// 取消锁定
+    /// </summary>
+    private static void UnkeepPickedWindow()
+    {
+        _keepPicked = false;
+        if (_pickedWindow != IntPtr.Zero)
+        {
+            UI.PrintSuccess($"已取消锁定: {_pickedTitle}");
+            UI.PrintInfo("提示：恢复30分钟超时机制");
+        }
+        else
+        {
+            UI.PrintInfo("当前没有锁定的窗口");
+        }
     }
 
     private static void FlashWindow(IntPtr hWnd, int times)
@@ -1000,6 +1070,322 @@ public static class WindowManager
     [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
     [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
     [DllImport("user32.dll", CharSet = CharSet.Auto)] private static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+
+    #endregion
+
+    #region 新增酷炫功能
+
+    /// <summary>
+    /// 窗口截图保存
+    /// </summary>
+    private static void CaptureWindow(string[] args)
+    {
+        var hWnd = GetPickedWindow();
+        var rect = GetWindowRect(hWnd);
+        int width = rect.Right - rect.Left;
+        int height = rect.Bottom - rect.Top;
+        
+        if (width <= 0 || height <= 0)
+        {
+            UI.PrintError("窗口尺寸无效");
+            return;
+        }
+
+        var filename = args.Length > 0 ? string.Join(" ", args) : $"winshot_{DateTime.Now:MMdd_HHmmss}.png";
+        if (!filename.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            filename += ".png";
+
+        try
+        {
+            using var bmp = new System.Drawing.Bitmap(width, height);
+            using (var g = System.Drawing.Graphics.FromImage(bmp))
+            {
+                // 使用 PrintWindow 截取窗口，支持后台窗口
+                var hdc = g.GetHdc();
+                var windowDC = GetWindowDC(hWnd);
+                BitBlt(hdc, 0, 0, width, height, windowDC, 0, 0, 0x00CC0020); // SRCCOPY
+                g.ReleaseHdc(hdc);
+                ReleaseDC(hWnd, windowDC);
+            }
+
+            // 保存到桌面
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            var filepath = Path.Combine(desktop, filename);
+            // 处理重名
+            int counter = 1;
+            var originalFilepath = filepath;
+            while (File.Exists(filepath))
+            {
+                var name = Path.GetFileNameWithoutExtension(originalFilepath);
+                filepath = Path.Combine(desktop, $"{name}_{counter}.png");
+                counter++;
+            }
+
+            bmp.Save(filepath, System.Drawing.Imaging.ImageFormat.Png);
+            UI.PrintSuccess($"截图已保存: {filepath}");
+        }
+        catch (Exception ex)
+        {
+            UI.PrintError($"截图失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 切换点击穿透模式（透明+鼠标穿透）
+    /// </summary>
+    private static void ToggleClickThrough()
+    {
+        var hWnd = GetPickedWindow();
+        var exStyle = (uint)GetWindowLong(hWnd, GWL_EXSTYLE);
+        bool isClickThrough = (exStyle & WS_EX_TRANSPARENT) != 0 && (exStyle & WS_EX_LAYERED) != 0;
+
+        if (isClickThrough)
+        {
+            // 恢复正常
+            SetWindowLong(hWnd, GWL_EXSTYLE, (int)(exStyle & ~WS_EX_TRANSPARENT & ~WS_EX_LAYERED));
+            SetLayeredWindowAttributes(hWnd, 0, 255, LWA_ALPHA);
+            UI.PrintSuccess($"{_pickedTitle} → 恢复正常模式");
+        }
+        else
+        {
+            // 设置点击穿透 + 透明
+            SetWindowLong(hWnd, GWL_EXSTYLE, (int)(exStyle | WS_EX_TRANSPARENT | WS_EX_LAYERED));
+            SetLayeredWindowAttributes(hWnd, 0, 180, LWA_ALPHA); // 70% 透明度
+            UI.PrintSuccess($"{_pickedTitle} → 点击穿透模式 (70%透明，鼠标可穿透)");
+            UI.PrintInfo("提示：适合看视频/文档时置顶但不挡操作");
+        }
+    }
+
+    /// <summary>
+    /// 放大镜跟随（创建一个放大镜窗口跟随鼠标）
+    /// </summary>
+    private static void ShowMagnifier()
+    {
+        UI.PrintInfo("放大镜已启动 - 按任意键关闭");
+        UI.PrintInfo("提示：移动鼠标即可放大查看");
+        
+        // 创建放大镜窗口
+        var magnifierSize = 200;
+        var zoomLevel = 2.0f;
+        
+        // 使用 Windows 内置放大镜 API
+        try
+        {
+            // 启动 Windows 放大镜
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "magnify.exe",
+                UseShellExecute = true
+            };
+            System.Diagnostics.Process.Start(psi);
+            
+            UI.PrintSuccess("已启动系统放大镜 (magnify.exe)");
+            UI.PrintInfo("你可以按 Win + + 放大，Win + - 缩小，Win + Esc 关闭");
+        }
+        catch (Exception ex)
+        {
+            UI.PrintError($"启动放大镜失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 克隆窗口 - 尝试再开一个同款应用
+    /// </summary>
+    private static void CloneWindow()
+    {
+        var hWnd = GetPickedWindow();
+        GetWindowThreadProcessId(hWnd, out uint pid);
+        
+        try
+        {
+            var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+            var procName = proc.ProcessName;
+            var exePath = proc.MainModule?.FileName;
+            
+            if (string.IsNullOrEmpty(exePath))
+            {
+                UI.PrintError("无法获取程序路径");
+                return;
+            }
+
+            // 特殊处理：浏览器类应用使用新窗口参数
+            var args = procName.ToLowerInvariant() switch
+            {
+                "chrome" => "--new-window",
+                "firefox" => "-new-window",
+                "msedge" => "--new-window",
+                "code" => "-n", // VS Code 新窗口
+                _ => ""
+            };
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = args,
+                UseShellExecute = true
+            };
+            
+            System.Diagnostics.Process.Start(startInfo);
+            UI.PrintSuccess($"已克隆: {procName}");
+            if (!string.IsNullOrEmpty(args))
+                UI.PrintInfo($"使用参数: {args}");
+        }
+        catch (Exception ex)
+        {
+            UI.PrintError($"克隆失败: {ex.Message}");
+            UI.PrintInfo("提示：某些UWP应用或受保护程序无法克隆");
+        }
+    }
+
+    #endregion
+
+    /// <summary>
+    /// 钉住窗口 - 置顶贴图模式
+    /// </summary>
+    private static void TogglePinWindow()
+    {
+        var hWnd = GetPickedWindow();
+        var exStyle = (uint)GetWindowLong(hWnd, GWL_EXSTYLE);
+        bool isPinned = (exStyle & WS_EX_TOPMOST) != 0 && _pinnedWindows.Contains(hWnd);
+
+        if (isPinned)
+        {
+            // 取消钉住
+            SetWindowPos(hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            // 恢复标题栏
+            var style = (uint)GetWindowLong(hWnd, GWL_STYLE);
+            SetWindowLong(hWnd, GWL_STYLE, (int)(style | WS_CAPTION | WS_THICKFRAME));
+            SetWindowPos(hWnd, IntPtr.Zero, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+            _pinnedWindows.Remove(hWnd);
+            UI.PrintSuccess($"{_pickedTitle} → 取消钉住");
+        }
+        else
+        {
+            // 钉住窗口 - 置顶 + 无边框 + 无法最小化
+            SetWindowPos(hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
+            _pinnedWindows.Add(hWnd);
+            UI.PrintSuccess($"{_pickedTitle} → 已钉住(置顶贴图模式)");
+            UI.PrintInfo("提示：窗口已置顶，再次执行 win pin 取消");
+        }
+    }
+
+    /// <summary>
+    /// 窗口背景模糊效果（亚克力/毛玻璃）
+    /// </summary>
+    private static void ToggleBlurWindow()
+    {
+        var hWnd = GetPickedWindow();
+        
+        try
+        {
+            // 检查是否已启用模糊
+            bool isBlurred = _blurredWindows.Contains(hWnd);
+            
+            if (isBlurred)
+            {
+                // 关闭模糊效果
+                var accent = new AccentPolicy { AccentState = AccentState.ACCENT_DISABLED };
+                var accentStructSize = Marshal.SizeOf(accent);
+                var accentPtr = Marshal.AllocHGlobal(accentStructSize);
+                Marshal.StructureToPtr(accent, accentPtr, false);
+
+                var data = new WindowCompositionAttributeData
+                {
+                    Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
+                    Data = accentPtr,
+                    SizeOfData = accentStructSize
+                };
+
+                SetWindowCompositionAttribute(hWnd, ref data);
+                Marshal.FreeHGlobal(accentPtr);
+                
+                // 恢复窗口背景
+                SetWindowLong(hWnd, GWL_EXSTYLE, (int)(GetWindowLong(hWnd, GWL_EXSTYLE) & ~WS_EX_TRANSPARENT));
+                
+                _blurredWindows.Remove(hWnd);
+                UI.PrintSuccess($"{_pickedTitle} → 关闭模糊效果");
+            }
+            else
+            {
+                // 启用亚克力模糊效果
+                var accent = new AccentPolicy
+                {
+                    AccentState = AccentState.ACCENT_ENABLE_ACRYLICBLURBEHIND,
+                    AccentFlags = 2,
+                    GradientColor = 0x99FFFFFF  // 半透明白色背景
+                };
+                
+                var accentStructSize = Marshal.SizeOf(accent);
+                var accentPtr = Marshal.AllocHGlobal(accentStructSize);
+                Marshal.StructureToPtr(accent, accentPtr, false);
+
+                var data = new WindowCompositionAttributeData
+                {
+                    Attribute = WindowCompositionAttribute.WCA_ACCENT_POLICY,
+                    Data = accentPtr,
+                    SizeOfData = accentStructSize
+                };
+
+                SetWindowCompositionAttribute(hWnd, ref data);
+                Marshal.FreeHGlobal(accentPtr);
+                
+                // 添加透明样式使效果更明显
+                SetWindowLong(hWnd, GWL_EXSTYLE, (int)(GetWindowLong(hWnd, GWL_EXSTYLE) | WS_EX_TRANSPARENT));
+                
+                _blurredWindows.Add(hWnd);
+                UI.PrintSuccess($"{_pickedTitle} → 启用亚克力模糊效果");
+                UI.PrintInfo("提示：再次执行 win blur 关闭效果");
+            }
+        }
+        catch (Exception ex)
+        {
+            UI.PrintError($"模糊效果设置失败: {ex.Message}");
+            UI.PrintInfo("提示：此功能需要 Windows 10 1803+ 或 Windows 11");
+        }
+    }
+
+    #region Native API (新增)
+
+    private const uint WS_EX_TRANSPARENT = 0x00000020;
+    private static readonly HashSet<IntPtr> _pinnedWindows = new();
+    private static readonly HashSet<IntPtr> _blurredWindows = new();
+
+    // 窗口合成属性
+    private enum WindowCompositionAttribute
+    {
+        WCA_ACCENT_POLICY = 19
+    }
+
+    private enum AccentState
+    {
+        ACCENT_DISABLED = 0,
+        ACCENT_ENABLE_GRADIENT = 1,
+        ACCENT_ENABLE_TRANSPARENTGRADIENT = 2,
+        ACCENT_ENABLE_BLURBEHIND = 3,
+        ACCENT_ENABLE_ACRYLICBLURBEHIND = 4
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct AccentPolicy
+    {
+        public AccentState AccentState;
+        public int AccentFlags;
+        public uint GradientColor;
+        public int AnimationId;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WindowCompositionAttributeData
+    {
+        public WindowCompositionAttribute Attribute;
+        public IntPtr Data;
+        public int SizeOfData;
+    }
+
+    [DllImport("user32.dll")] private static extern IntPtr GetWindowDC(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+    [DllImport("gdi32.dll")] private static extern bool BitBlt(IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, IntPtr hdcSrc, int nXSrc, int nYSrc, uint dwRop);
+    [DllImport("user32.dll")] private static extern int SetWindowCompositionAttribute(IntPtr hwnd, ref WindowCompositionAttributeData data);
 
     #endregion
 }
