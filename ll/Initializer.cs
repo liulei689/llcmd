@@ -113,6 +113,7 @@ namespace LL
             CommandManager.RegisterCommand(94, "base64", "Base64 编码/解码: base64 <encode|decode> <text> 或 --file <file>", args => Base64Tool.Handle(args));
             CommandManager.RegisterCommand(95, "dice", "掷骰子: dice [sides] [count]", args => DiceRoller.Handle(args));
             CommandManager.RegisterCommand(96, "art", "生成 ASCII 艺术文字: art <text>", args => AsciiArt.Handle(args));
+            CommandManager.RegisterCommand(97, "wifi", "Wi-Fi 工具: list, cur, connect <ssid>, pwd <ssid>, pwd-all", args => WifiCommands.Handle(args));
             CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
             CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow(); LL.Native.NativeMethods.ShowWindow(hWnd, LL.Native.NativeMethods.SW_MINIMIZE); });
 

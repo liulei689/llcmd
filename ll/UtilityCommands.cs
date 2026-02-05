@@ -72,6 +72,7 @@ public static class UtilityCommands
         Console.WriteLine();
         UI.PrintResult("ps [关键词]", "列进程(按名称过滤)");
         UI.PrintResult("kill <pid|name>", "结束进程");
+        UI.PrintResult("kill --port <port>", "结束监听该端口的进程");
         UI.PrintResult("port <端口>", "查看本机端口是否在监听/被占用(简版)");
         UI.PrintResult("ip", "显示网卡/IP/网关/DNS");
         UI.PrintResult("curl <url>", "HTTP GET(简版)");

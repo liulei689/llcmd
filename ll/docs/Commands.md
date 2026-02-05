@@ -51,6 +51,16 @@
 - **paste [text]**: 向当前活动窗口输入框发送文本，默认使用PresetText。
 - **全局热键**：Ctrl+Shift+V 向当前活动窗口输入预定文本。
 
+## wifi
+
+用法:
+
+- `wifi list`: 列出可用热点
+- `wifi cur`: 显示当前连接/信号等接口信息
+- `wifi connect <ssid>`: 连接指定 SSID（要求系统已保存该 Wi-Fi 配置文件）
+- `wifi pwd <ssid>`: 查看已保存 Wi-Fi 密码（可能需要管理员权限）
+- `wifi pwd-all`: 一键列出所有已保存 Wi-Fi 及其密码（读取失败会提示）
+
 ## 添加新命令
 在 Program.Initialize() 添加 RegisterCommand。
 
@@ -68,7 +78,6 @@
 - `git rollback <commit> [--hard]` 或 `git rb <commit> [--hard]`
   - 不带 `--hard`：执行 `git checkout <commit>`（进入 detached HEAD，安全查看历史或临时回退）。
   - 带 `--hard`：执行 `git reset --hard <commit>`（危险，会丢失未提交更改，命令执行前要求交互确认）。
-  - 示例：`git rollback abc123` 或 `git rollback abc123 --hard`
 
 说明：
 - 这些命令在内部调用本机安装的 `git`（会尝试查找常见安装路径或使用 `where git`）。
