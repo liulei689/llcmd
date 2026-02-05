@@ -88,3 +88,66 @@
 - **template <type> [name]**: 生成项目模板 (支持短参数: c/console, w/webapi, lib/classlib 等, 调用 dotnet new, 自动重命名, 默认打开项目或文件夹)。
 - **volume <action>**: 音量控制 (mute/unmute/up/down/set <level>)。
 - **lottery**: 打开年会抽奖页面。
+- **wallpaper <sub>**: 壁纸管理器 (set/random/online/bing/auto/source/folder/list/history/prev/mode)。
+- **win <sub>**: 窗口管理器 (top/list/opacity/min/close/activate/info/move/resize)。
+
+## wallpaper - 壁纸管理器
+
+用法:
+
+- `wallpaper set <path>`: 设置指定图片为桌面壁纸
+- `wallpaper random` 或 `wallpaper r`: 从壁纸文件夹随机选择一张图片设为壁纸
+- `wallpaper online [source]`: 设置在线随机壁纸 (可选指定源)
+- `wallpaper bing [save]`: 下载并设置 Bing 每日美图
+- `wallpaper auto <start|stop|status|interval>`: 自动定时切换壁纸
+- `wallpaper source [name]`: 查看或设置壁纸源
+- `wallpaper sources`: 列出所有可用壁纸源
+- `wallpaper folder [path]`: 查看或设置壁纸文件夹路径
+- `wallpaper list`: 列出壁纸文件夹中的所有图片
+- `wallpaper history` 或 `wallpaper h`: 查看壁纸切换历史记录
+- `wallpaper prev` 或 `wallpaper p`: 快速切回到上一张壁纸
+- `wallpaper mode <style>`: 设置壁纸显示模式 (fill/fit/stretch/tile/center/span)
+
+**可用壁纸源 (美女/二次元):**
+- `btstu` - 搏天二次元萌图 (默认)
+- `btstu2` - 搏天美女壁纸
+- `paugram` - 保罗高清美女
+- `dmoe` - 萌化二次元
+- `mtyqx` - 墨天逸高清美女
+- `zj` - 只因美女壁纸
+
+示例:
+```
+wallpaper set C:\Pictures\wallpaper.jpg
+wallpaper bing
+wallpaper online              # 使用默认源
+wallpaper online btstu2       # 使用搏天美女源
+wallpaper auto start 10       # 每10分钟自动切换
+wallpaper auto stop           # 停止自动切换
+wallpaper source btstu2       # 设置默认源为美女
+wallpaper mode fill
+```
+
+## win - 窗口管理器
+
+用法:
+
+- `win top [title]`: 置顶/取消置顶窗口 (默认当前窗口)
+- `win list [filter]`: 列出所有可见窗口 (可带过滤关键字)
+- `win opacity <0-255> [title]`: 设置窗口透明度 (0=完全透明, 255=不透明)
+- `win min`: 最小化除当前窗口外的所有窗口
+- `win close <title|index>`: 关闭指定窗口
+- `win activate <title|index>`: 激活指定窗口
+- `win info`: 显示当前活动窗口的详细信息
+- `win move <x> <y> [title]`: 移动窗口到指定位置
+- `win resize <w> <h> [title]`: 调整窗口大小
+
+示例:
+```
+win top                    # 置顶当前窗口
+win list                   # 列出所有窗口
+win list chrome            # 列出包含 chrome 的窗口
+win opacity 180            # 设置当前窗口透明度为 70%
+win close 3                # 关闭列表中第 3 个窗口
+win activate 微信          # 激活标题包含"微信"的窗口
+```

@@ -114,19 +114,22 @@ namespace LL
             CommandManager.RegisterCommand(95, "dice", "掷骰子: dice [sides] [count]", args => DiceRoller.Handle(args));
             CommandManager.RegisterCommand(96, "art", "生成 ASCII 艺术文字: art <text>", args => AsciiArt.Handle(args));
             CommandManager.RegisterCommand(97, "wifi", "Wi-Fi 工具: list, cur, connect <ssid>, pwd <ssid>, pwd-all", args => WifiCommands.Handle(args));
-            CommandManager.RegisterCommand(99, "exit", "退出", _ => Environment.Exit(0));
-            CommandManager.RegisterCommand(100, "min", "最小化窗口", _ => { IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow(); LL.Native.NativeMethods.ShowWindow(hWnd, LL.Native.NativeMethods.SW_MINIMIZE); });
+            CommandManager.RegisterCommand(98, "wallpaper", "壁纸管理: set, random, bing, folder, list, history, prev, mode", args => WallpaperManager.Handle(args));
+            CommandManager.RegisterCommand(99, "crawl", "抓取网络壁纸: girl, anime, landscape, download <类型> <数量>", args => WallpaperCrawler.Handle(args).Wait());
+            CommandManager.RegisterCommand(100, "win", "窗口管理: top, list, opacity, min, close, activate, info, move, resize", args => WindowManager.Handle(args));
+            CommandManager.RegisterCommand(101, "exit", "退出", _ => Environment.Exit(0));
+            CommandManager.RegisterCommand(102, "min", "最小化窗口", _ => { IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow(); LL.Native.NativeMethods.ShowWindow(hWnd, LL.Native.NativeMethods.SW_MINIMIZE); });
 
             // 快捷启动程序注册
-            ShortcutManager.RegisterShortcut(101, "vs",     "Visual Studio", "devenv");
             ShortcutManager.RegisterShortcut(102, "vs22",   "Visual Studio 2022", @"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\IDE\\devenv.exe");
             ShortcutManager.RegisterShortcut(103, "vs26",   "Visual Studio 2026", "devenv");
-            ShortcutManager.RegisterShortcut(104, "code",   "Visual Studio Code", "code");
-            ShortcutManager.RegisterShortcut(105, "cmd",    "Command Prompt", "cmd");
-            ShortcutManager.RegisterShortcut(106, "calc",   "计算器", "calc");
-            ShortcutManager.RegisterShortcut(107, "notepad","记事本", "notepad");
-            ShortcutManager.RegisterShortcut(108, "edge",   "Microsoft Edge", "msedge");
-            
+            ShortcutManager.RegisterShortcut(105, "code",   "Visual Studio Code", "code");
+            ShortcutManager.RegisterShortcut(106, "cmd",    "Command Prompt", "cmd");
+            ShortcutManager.RegisterShortcut(107, "calc",   "计算器", "calc");
+            ShortcutManager.RegisterShortcut(108, "notepad","记事本", "notepad");
+            ShortcutManager.RegisterShortcut(109, "edge",   "Microsoft Edge", "msedge");
+            ShortcutManager.RegisterShortcut(110, "vs", "Visual Studio", "devenv");
+
             ShortcutManager.RegisterShortcut(121, "cat",    "SakuraCat", @"C:\\Program Files\\SakuraCat\\SakuraCat.exe");
             ShortcutManager.RegisterShortcut(122, "unity",  "Unity Hub", @"D:\\unityhuben\\Unity Hub\\Unity Hub.exe");
             ShortcutManager.RegisterShortcut(123, "music",  "NetEase Music", @"D:\\LenovoSoftstore\\Install\\wangyiyunyinyue\\cloudmusic.exe");
