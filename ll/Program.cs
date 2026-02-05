@@ -82,6 +82,17 @@ class Program
         Console.OutputEncoding = Encoding.UTF8;
         Console.InputEncoding = Encoding.Unicode;
         Console.Title = "LL 命令行工具";
+        Initialize(); // 仅注册命令
+                // 内部模式：仅用于按需提权执行单条命令
+        if (args.Length > 0)
+        {
+            if(args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
+            CommandManager.ExecuteCommand(args[1], args.Skip(2).ToArray());
+            else
+             CommandManager.ExecuteCommand(args[0], args.Skip(1).ToArray());
+            return;
+        }
+        // 交互模式/提权模式：执行完整初始化流程
         // 顶部控制栏设为黑色（Win10+，仅对控制台窗口有效）
         IntPtr hWnd = LL.Native.NativeMethods.GetConsoleWindow();
         if (hWnd != IntPtr.Zero)
@@ -108,15 +119,9 @@ class Program
         // Check for VT support
         bool supportsVT = EnableVirtualTerminalProcessing();
 
-        // 初始化并注册
-        Initialize();
+    
 
-        // 内部模式：仅用于按需提权执行单条命令
-        if (args.Length > 1 && args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
-        {
-            CommandManager.ExecuteCommand(args[1], args.Skip(2).ToArray());
-            return;
-        }
+
 
         // 初始化热键
         HotkeyManager.Initialize();
@@ -183,9 +188,9 @@ class Program
         // 启动后台任务，每分钟更新总运行时长
         _lastUpdateTime = DateTime.Now;
         // 从runtime.json读取初始总运行时长
+        var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
         try
         {
-            var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
             _totalRuntimeSeconds = ConfigManager.GetValue("TotalRuntimeSeconds", 0L, runtimePath);
             TotalRuntimeSeconds = _totalRuntimeSeconds;
 
@@ -205,6 +210,9 @@ class Program
             DateTime now = DateTime.Now;
             ConfigManager.SetValue("LaunchCount", launchCount, runtimePath);
             ConfigManager.SetValue("LastLaunchTime", now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
+            TimeSpan totalTime = TimeSpan.FromSeconds(TotalRuntimeSeconds);
+            ConfigManager.SetValue("LastLaunchTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
+            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}，鼠标点击次数: {InputStats.MouseClickCount} ({InputStats.SessionMouseClickCount})，键盘按键次数: {InputStats.KeyboardPressCount} ({InputStats.SessionKeyboardPressCount})");
         }
         catch { }
         Task.Run(async () =>
@@ -222,42 +230,29 @@ class Program
                 InputStats.UpdateStats();
             }
         });
-        // 入口点
-        if (args.Length == 0)
+        // 进入交互模式（能走到这里只可能是 args.Length == 0，命令模式已在前面处理）
+        UI.PrintBanner();
+        // 显示总运行时长
+        UpdateConsoleTitle();
+        // 默认开启 2 小时时间关机监听
+        PowerManager.StartIdleMonitor(new[] { "2h" });
+        IsIdleMonitoring = true;
+        UpdateConsoleTitle();
+        // 默认启动数据库监听
+        string connString = GetConnectionString();
+        HasDb = connString != null;
+        if (HasDb)
         {
-            UI.PrintBanner();
-            // 显示总运行时长
-            TimeSpan totalTime = TimeSpan.FromSeconds(TotalRuntimeSeconds);
-            var runtimePath = Path.Combine(AppContext.BaseDirectory, "runtime.json");
-            long launchCount = ConfigManager.GetValue("LaunchCount", 0L, runtimePath);
-            string lastLaunchTimeStr = ConfigManager.GetValue("LastLaunchTime", "", runtimePath);
-            ConfigManager.SetValue("LastLaunchTime", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"), runtimePath);
-            UI.PrintInfo($"系统总运行时长: {totalTime.Days}天 {totalTime.Hours}小时 {totalTime.Minutes}分钟 {totalTime.Seconds}秒，启动次数: {launchCount}，上次启动: {lastLaunchTimeStr}，邮件发送次数: {EmailSendCount}，数据库存储次数: {DbStoreCount}，鼠标点击次数: {InputStats.MouseClickCount} ({InputStats.SessionMouseClickCount})，键盘按键次数: {InputStats.KeyboardPressCount} ({InputStats.SessionKeyboardPressCount})");
+            IsSSHConnected = true;
             UpdateConsoleTitle();
-            // 默认开启 2 小时时间关机监听
-            PowerManager.StartIdleMonitor(new[] { "2h" });
-            IsIdleMonitoring = true;
+            LogManager.Initialize(connString);
+            ListenManager.StartListen("ll_notifications", connString);
+            LogManager.Log("Info", "System", "CLI 启动");
+            Program._dbStoreCount++;
+            IsDBListening = true;
             UpdateConsoleTitle();
-            // 默认启动数据库监听
-            string connString = GetConnectionString();
-            HasDb = connString != null;
-            if (HasDb)
-            {
-                IsSSHConnected = true;
-                UpdateConsoleTitle();
-                LogManager.Initialize(connString);
-                ListenManager.StartListen("ll_notifications", connString);
-                LogManager.Log("Info", "System", "CLI 启动");
-                Program._dbStoreCount++;
-                IsDBListening = true;
-                UpdateConsoleTitle();
-            }
-            EnterInteractiveMode(supportsVT);
         }
-        else
-        {
-            CommandManager.ExecuteCommand(args[0], args.Skip(1).ToArray());
-        }
+        EnterInteractiveMode(supportsVT);
 
     }
 
