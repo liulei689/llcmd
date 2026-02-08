@@ -86,6 +86,13 @@ class Program
                 // 内部模式：仅用于按需提权执行单条命令
         if (args.Length > 0)
         {
+            // 检查是否是.llv文件双击打开
+            if (args[0].EndsWith(".llv", StringComparison.OrdinalIgnoreCase) && File.Exists(args[0]))
+            {
+                VideoVaultCommands.Play(new[] { args[0] });
+                return;
+            }
+
             if(args[0].Equals("--elevated-run", StringComparison.OrdinalIgnoreCase))
             CommandManager.ExecuteCommand(args[1], args.Skip(2).ToArray());
             else

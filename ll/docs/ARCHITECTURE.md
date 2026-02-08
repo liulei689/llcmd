@@ -28,6 +28,7 @@ ll/
 ├── NativeMethods.cs    # P/Invoke
 ├── ConfigManager.cs    # 配置管理器
 ├── NetMonCommands.cs   # 网络监控
+├── FileAssocCommands.cs # 文件关联管理
 └── config.json         # 配置
 ```
 

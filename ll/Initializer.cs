@@ -140,6 +140,7 @@ namespace LL
             ShortcutManager.RegisterShortcut(128, "jmeter", "Apache JMeter", @"C:\\Users\\liu\\OneDrive\\Desktop\\apache-jmeter-5.6.2\\bin\\jmeter.bat");
             ShortcutManager.RegisterShortcut(129, "nes",    "小霸王游戏机", @"C:\\Users\\liu\\Downloads\\xbwmnq204\\小霸王游戏机327合1\\smynesc.exe");
             CommandManager.RegisterCommand(130, "netmon", "网络监控: 查看进程网络活动. 用法: netmon [list|pid <pid>]", args => NetMonCommands.Handle(args));
+            CommandManager.RegisterCommand(131, "assoc", "关联.llv文件: assoc register(注册) / unregister(取消注册)", args => FileAssocCommands.Handle(args));
 
             // 快捷启动使用纯数字(101-129) 或 open + 别名
         }
