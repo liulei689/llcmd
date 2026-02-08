@@ -27,6 +27,7 @@ ll/
 ├── SSHConn.cs          # SSH
 ├── NativeMethods.cs    # P/Invoke
 ├── ConfigManager.cs    # 配置管理器
+├── NetMonCommands.cs   # 网络监控
 └── config.json         # 配置
 ```
 
