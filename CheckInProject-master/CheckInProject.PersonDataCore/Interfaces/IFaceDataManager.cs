@@ -8,6 +8,7 @@ namespace CheckInProject.PersonDataCore.Interfaces
     {
         public FaceRecognition FaceRecognitionAPI { get; }
         public RawPersonDataBase CreateFaceData(Bitmap sourceData, string? sourceName, uint? personID);
+        public RawPersonDataBase CreateFaceDataFast(Bitmap sourceData, string? sourceName, uint? personID);
         public IList<RawPersonDataBase> CreateFacesData(IList<Bitmap> sourceData);
         public IList<RawPersonDataBase> CompareFace(IList<RawPersonDataBase> faceDataList, RawPersonDataBase targetFaceData);
         public IList<RawPersonDataBase> CompareFaces(IList<RawPersonDataBase> faceDataList, IList<RawPersonDataBase> targetFaceDataList);

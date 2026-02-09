@@ -22,6 +22,13 @@ namespace CheckInProject.App.Pages
 {
     /// <summary>
     /// 权限验证页面 - 全屏人脸识别
+    ///
+    /// 【模型切换配置】
+    /// 修改 FaceDataManager.UseCnnModel 即可切换识别模型：
+    /// - false (默认) = HOG模型 - 速度快，适合实时验证
+    /// - true = CNN模型 - 精度高，但慢10倍以上
+    ///
+    /// 配置位置：CheckInProject.PersonDataCore.Implementation.FaceDataManager.UseCnnModel
     /// </summary>
     public partial class AuthVerifyPage : Page, INotifyPropertyChanged
     {
@@ -279,9 +286,9 @@ namespace CheckInProject.App.Pages
                                 if (faceCount.Count > 0)
                                 {
                                     _faceDetectedCount++;
-                                    
-                                    // 连续检测到人脸15帧后执行识别
-                                    if (_faceDetectedCount >= 15)
+
+                                    // 连续检测到人脸3帧后执行识别（减少等待时间）
+                                    if (_faceDetectedCount >= 3)
                                     {
                                         using (var targetBitmap = image.ToBitmap())
                                         {
@@ -339,6 +346,8 @@ namespace CheckInProject.App.Pages
 
                     using (var targetFaceBitmap = targetFaceBitmapModels.FaceImages.First())
                     {
+                        // 使用可配置模型：通过 FaceDataManager.UseCnnModel 控制
+                        // false = HOG快速模型(默认)  true = CNN高精度模型
                         var targetFaceEncoding = FaceRecognitionAPI.CreateFaceData(targetFaceBitmap, null, null);
                         var knownFaces = PersonDatabaseAPI.GetFaceData().Select(t => t.ConvertToRawPersonDataBase()).ToList();
                         

@@ -10,6 +10,14 @@ namespace CheckInProject.PersonDataCore.Implementation
 {
     public class FaceDataManager : IFaceDataManager
     {
+        /// <summary>
+        /// 人脸识别模型选择
+        /// true = 使用CNN模型(Large) - 精度高但慢
+        /// false = 使用HOG模型(Small) - 速度快但精度稍低
+        /// 修改此处即可切换模型，无需改动其他代码
+        /// </summary>
+        public static bool UseCnnModel { get; set; } = false; // 默认使用HOG快速模型
+
         public FaceRecognition FaceRecognitionAPI => Provider.GetRequiredService<FaceRecognition>();
 
         public CascadeClassifier Cascade => Provider.GetRequiredService<CascadeClassifier>();
@@ -20,7 +28,25 @@ namespace CheckInProject.PersonDataCore.Implementation
         {
             using (var recognitionImage = FaceRecognition.LoadImage(sourceData))
             {
-                var encodings = FaceRecognitionAPI.FaceEncodings(recognitionImage);
+                // 根据配置自动选择模型：CNN(高精度慢速) 或 HOG(低精度快速)
+                var model = UseCnnModel ? PredictorModel.Large : PredictorModel.Small;
+                var encodings = FaceRecognitionAPI.FaceEncodings(recognitionImage, null, 1, model);
+                if (encodings == null || encodings.Count() == 0)
+                {
+                    throw new InvalidOperationException("未能从图片中提取到人脸特征，请确保图片中包含清晰的人脸。");
+                }
+                var encoding = encodings.First().GetRawEncoding();
+                var personName = sourceName;
+                return new RawPersonDataBase { FaceEncoding = encoding, Name = personName, ClassID = personID };
+            }
+        }
+
+        public RawPersonDataBase CreateFaceDataFast(Bitmap sourceData, string? sourceName, uint? personID)
+        {
+            // 快速模式始终使用HOG模型
+            using (var recognitionImage = FaceRecognition.LoadImage(sourceData))
+            {
+                var encodings = FaceRecognitionAPI.FaceEncodings(recognitionImage, null, 1, PredictorModel.Small);
                 if (encodings == null || encodings.Count() == 0)
                 {
                     throw new InvalidOperationException("未能从图片中提取到人脸特征，请确保图片中包含清晰的人脸。");
@@ -98,14 +124,14 @@ namespace CheckInProject.PersonDataCore.Implementation
         }
         public FaceCountModels GetFaceCount(Mat sourceImage)
         {
-            // 使用更宽松的参数，提高戴眼镜等情况的识别率
+            // 优化参数：更快的检测速度，同时保持合理精度
             Rect[] recognizedFaces = Cascade.DetectMultiScale(
                             image: sourceImage,
-                            scaleFactor: 1.05,
-                            minNeighbors: 2,
-                            flags: HaarDetectionTypes.DoRoughSearch | HaarDetectionTypes.ScaleImage,
-                            minSize: new OpenCvSharp.Size(40, 40),
-                            maxSize: new OpenCvSharp.Size()
+                            scaleFactor: 1.2,      // 增大缩放因子，减少检测层数，提速
+                            minNeighbors: 3,       // 适当增加邻居数，减少误检
+                            flags: HaarDetectionTypes.ScaleImage,
+                            minSize: new OpenCvSharp.Size(80, 80),  // 增大最小尺寸，减少小目标检测
+                            maxSize: new OpenCvSharp.Size(400, 400) // 限制最大尺寸
                         );
             // ToBitmap()会创建独立的Bitmap副本，Mat可以安全释放
             using (var targetImage = sourceImage.Clone())
@@ -124,14 +150,14 @@ namespace CheckInProject.PersonDataCore.Implementation
             var sourceImage = sourceBitmap.ToMat();
             try
             {
-                // 使用更宽松的参数，提高戴眼镜等情况的识别率
+                // 优化参数：更快的检测速度
                 Rect[] recognizedFaces = Cascade.DetectMultiScale(
                                             image: sourceImage,
-                                            scaleFactor: 1.05,
-                                            minNeighbors: 2,
-                                            flags: HaarDetectionTypes.DoRoughSearch | HaarDetectionTypes.ScaleImage,
-                                            minSize: new OpenCvSharp.Size(40, 40),
-                                            maxSize: new OpenCvSharp.Size()
+                                            scaleFactor: 1.2,
+                                            minNeighbors: 3,
+                                            flags: HaarDetectionTypes.ScaleImage,
+                                            minSize: new OpenCvSharp.Size(80, 80),
+                                            maxSize: new OpenCvSharp.Size(400, 400)
                                         );
                 var maxiumRect = recognizedFaces.ToList().OrderByDescending(t => t.Height * t.Width).FirstOrDefault();
                 
@@ -165,14 +191,14 @@ namespace CheckInProject.PersonDataCore.Implementation
             var sourceImage = sourceBitmap.ToMat();
             try
             {
-                // 使用更宽松的参数，提高戴眼镜等情况的识别率
+                // 优化参数：更快的检测速度
                 Rect[] recognizedFaces = Cascade.DetectMultiScale(
                                             image: sourceImage,
-                                            scaleFactor: 1.05,
-                                            minNeighbors: 2,
-                                            flags: HaarDetectionTypes.DoRoughSearch | HaarDetectionTypes.ScaleImage,
-                                            minSize: new OpenCvSharp.Size(40, 40),
-                                            maxSize: new OpenCvSharp.Size()
+                                            scaleFactor: 1.2,
+                                            minNeighbors: 3,
+                                            flags: HaarDetectionTypes.ScaleImage,
+                                            minSize: new OpenCvSharp.Size(80, 80),
+                                            maxSize: new OpenCvSharp.Size(400, 400)
                                         );
                 var resultList = new List<Bitmap>();
                 foreach (var recognizedFace in recognizedFaces)
