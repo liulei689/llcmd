@@ -48,6 +48,8 @@
 - **decrypt [options]**: 解密。
 - **task/dev/ctrl/set/netset/sound/disp/store/desk/tmp/recycle/snip/dnsflush/netfix**: 打开设置。
 - **min**: 最小化窗口。
+- **netmon [list|pid <pid>]**: 网络监控 (查看进程网络活动)
+- **assoc [register/unregister/status]**: 文件关联管理 (.llv文件双击打开)
 - **paste [text]**: 向当前活动窗口输入框发送文本，默认使用PresetText。
 - **全局热键**：Ctrl+Shift+V 向当前活动窗口输入预定文本。
 
@@ -151,3 +153,49 @@ win opacity 180            # 设置当前窗口透明度为 70%
 win close 3                # 关闭列表中第 3 个窗口
 win activate 微信          # 激活标题包含"微信"的窗口
 ```
+
+## netmon - 网络监控
+
+实时监控进程的网络活动（上传/下载速度）。
+
+用法:
+
+- `netmon`: 实时监控所有进程的网络活动（上传/下载速度），按任意键退出
+- `netmon list`: 列出当前所有 TCP 网络连接（包括本地地址、远程地址、状态、所属进程）
+- `netmon pid <pid>`: 监控指定 PID 进程的网络活动
+
+示例:
+```
+netmon                     # 启动实时监控
+netmon list                # 查看所有网络连接
+netmon pid 1234            # 监控 PID 为 1234 的进程
+```
+
+输出说明:
+- ▲ 上传速度: 进程每秒发送的数据量
+- ▼ 下载速度: 进程每秒接收的数据量
+- 连接数: 进程的活跃 TCP 连接数量
+- 状态颜色: 绿色=ESTABLISHED, 黄色=LISTENING, 灰色=其他
+
+## assoc - 文件关联管理
+
+管理 .llv 加密视频文件的系统关联，实现双击自动播放。
+
+用法:
+
+- `assoc register`: 注册 .llv 文件关联（自动请求管理员权限）
+- `assoc unregister`: 取消 .llv 文件关联（自动请求管理员权限）
+- `assoc status`: 查看当前关联状态（无需管理员权限）
+
+示例:
+```
+assoc register             # 注册文件关联（自动弹出UAC授权）
+assoc status               # 查看关联状态
+assoc unregister           # 取消文件关联（自动弹出UAC授权）
+```
+
+说明:
+- 注册后，双击 .llv 文件将自动使用 ll.exe 播放
+- 关联信息写入注册表 HKEY_CLASSES_ROOT
+- `register` 和 `unregister` 会自动请求管理员权限（UAC弹窗）
+- `status` 不需要管理员权限
