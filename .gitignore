@@ -362,3 +362,5 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /ll/config.json
+/CheckInProject-master/.idea/.idea.CheckInProject/.idea
+/CheckInProject-master/CheckInProject.App/FaceRecognitionModel
