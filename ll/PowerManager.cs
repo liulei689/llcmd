@@ -254,32 +254,62 @@ public static class PowerManager
                     {
                         guardianAutoActive = true;
                         GuardianManager.ToggleGuardianMode([]);
+                        // 记录守护模式激活的时间
+                        DateTime guardianActivatedTime = DateTime.Now;
+                        // 等待一段时间，避免守护模式界面的显示和更新导致空闲时间被重置
+                        await Task.Delay(2000, token); // 等待2秒
                     }
                     else if (!isIdleMode && guardianAutoActive)
                     {
-                        guardianAutoActive = false;
-                        // 空闲时间自动退出守护模式也需要面部识别验证
-                        if (GuardianManager.IsActive)
+                        // 检查是否真的有用户输入，而不是因为守护模式界面的显示和更新
+                        // 只有当空闲时间确实很小（小于 IdleExitSeconds）并且持续一段时间后，才认为是真正的用户输入
+                        bool hasRealUserInput = false;
+                        int consecutiveLowIdleCount = 0;
+                        const int requiredConsecutiveChecks = 10; // 需要连续10次检查都显示空闲时间很低
+                        
+                        for (int i = 0; i < requiredConsecutiveChecks; i++)
                         {
-                            // 先异步启动面部识别程序（让窗口尽快出现）
-                            var authTask = Task.Run(() => FaceAuthCommands.Authenticate(), token);
-                            
-                            // 同时显示全屏进度条
-                            await ShowFaceAuthProgressScreen("空闲结束 - 面部识别验证", token);
-                            
-                            // 等待面部识别完成
-                            var result = await authTask;
-                            if (result.Success)
+                            uint currentIdleMs = GetIdleTime();
+                            double currentIdleSeconds = currentIdleMs / 1000.0;
+                            if (currentIdleSeconds < IdleExitSeconds)
                             {
-                                UI.PrintSuccess($"面部识别通过，退出守护模式");
-                                GuardianManager.AutoExitGuardianMode();
+                                consecutiveLowIdleCount++;
                             }
                             else
                             {
-                                UI.PrintError($"面部识别验证失败: {result.ErrorMessage}");
-                                UI.PrintInfo("继续守护模式");
-                                // 验证失败，重新进入空闲模式计数
-                                guardianAutoActive = true;
+                                break;
+                            }
+                            await Task.Delay(200, token); // 每次检查间隔200毫秒
+                        }
+                        
+                        hasRealUserInput = consecutiveLowIdleCount >= requiredConsecutiveChecks;
+                        
+                        if (hasRealUserInput)
+                        {
+                            guardianAutoActive = false;
+                            // 空闲时间自动退出守护模式也需要面部识别验证
+                            if (GuardianManager.IsActive)
+                            {
+                                // 先异步启动面部识别程序（让窗口尽快出现）
+                                var authTask = Task.Run(() => FaceAuthCommands.Authenticate(), token);
+                                
+                                // 同时显示全屏进度条
+                                await ShowFaceAuthProgressScreen("空闲结束 - 面部识别验证", token);
+                                
+                                // 等待面部识别完成
+                                var result = await authTask;
+                                if (result.Success)
+                                {
+                                    UI.PrintSuccess($"面部识别通过，退出守护模式");
+                                    GuardianManager.AutoExitGuardianMode();
+                                }
+                                else
+                                {
+                                    UI.PrintError($"面部识别验证失败: {result.ErrorMessage}");
+                                    UI.PrintInfo("继续守护模式");
+                                    // 验证失败，重新进入空闲模式计数
+                                    guardianAutoActive = true;
+                                }
                             }
                         }
                     }
@@ -475,7 +505,18 @@ public static class PowerManager
         lastInputInfo.cbSize = (uint)Marshal.SizeOf(lastInputInfo);
         if (NativeMethods.GetLastInputInfo(ref lastInputInfo))
         {
-            uint currentIdle = (uint)Environment.TickCount - lastInputInfo.dwTime;
+            // 解决 Environment.TickCount 溢出问题
+            uint tickCount = (uint)Environment.TickCount;
+            uint currentIdle;
+            if (tickCount >= lastInputInfo.dwTime)
+            {
+                currentIdle = tickCount - lastInputInfo.dwTime;
+            }
+            else
+            {
+                // 溢出情况：计算正确的空闲时间
+                currentIdle = (uint.MaxValue - lastInputInfo.dwTime) + tickCount + 1;
+            }
             var now = DateTime.Now;
 
             if (IsScreenLocked())
@@ -498,18 +539,45 @@ public static class PowerManager
 
     private static bool IsScreenLocked()
     {
+        // 方法1：通过前台窗口类名判断
         IntPtr hwnd = GetForegroundWindow();
         if (hwnd != IntPtr.Zero)
         {
             StringBuilder className = new StringBuilder(256);
             GetClassName(hwnd, className, className.Capacity);
             string cls = className.ToString();
-            if (cls.Contains("LockScreen") || cls.Contains("Windows.UI.Core.CoreWindow"))
+            if (cls.Contains("LockScreen") || cls.Contains("Windows.UI.Core.CoreWindow") || cls.Contains("Credential"))
             {
                 return true;
             }
-
         }
+
+        // 方法2：通过 WTS 会话信息判断
+        try
+        {
+            IntPtr server = IntPtr.Zero;
+            int sessionId = -1;
+            IntPtr buffer = IntPtr.Zero;
+            int bytesReturned = 0;
+
+            // 获取当前会话ID
+            if (NativeMethods.ProcessIdToSessionId((uint)Process.GetCurrentProcess().Id, ref sessionId))
+            {
+                // 查询会话连接状态
+                if (WTSQuerySessionInformation(server, sessionId, WTS_INFO_CLASS.WTSConnectState, out buffer, out bytesReturned) && buffer != IntPtr.Zero)
+                {
+                    WTS_CONNECTSTATE_CLASS state = (WTS_CONNECTSTATE_CLASS)Marshal.ReadInt32(buffer);
+                    WTSFreeMemory(buffer);
+                    // 如果会话状态是锁定或断开连接，则认为屏幕被锁定
+                    if (state == WTS_CONNECTSTATE_CLASS.WTSDisconnected || state == WTS_CONNECTSTATE_CLASS.WTSIdle)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+        catch { }
+
         return false;
     }
 
