@@ -10,7 +10,7 @@ namespace LL
         public static void Initialize()
         {
             // 系统指令
-            CommandManager.RegisterCommand(1,  "ls",   "指令清单", _ => Program.ShowList());
+            CommandManager.RegisterCommand(1, "ls", "指令清单(需面部认证)", _ => { if (FaceAuthCommands.RequireAuth("ls")) Program.ShowList(); });
             CommandManager.RegisterCommand(2,  "gd",   "守护模式", args => GuardianManager.ToggleGuardianMode(args));
             CommandManager.RegisterCommand(3,  "sd",   "倒数关机", args => PowerManager.StartShutdownSequence(args));
             CommandManager.RegisterCommand(4,  "idle", "空闲关机", args => PowerManager.StartIdleMonitor(args));
@@ -143,6 +143,12 @@ namespace LL
             CommandManager.RegisterCommand(131, "assoc", "关联.llv文件: assoc register(注册) / unregister(取消注册)", args => FileAssocCommands.Handle(args));
 
             // 快捷启动使用纯数字(101-129) 或 open + 别名
+
+            // 面部识别认证模块
+            CommandManager.RegisterCommand(200, "faceauth", "面部识别认证: faceauth [userid]", args => FaceAuthCommands.Execute(args));
+            CommandManager.RegisterCommand(201, "facestatus", "查看认证状态", _ => FaceAuthCommands.ShowStatus());
+            CommandManager.RegisterCommand(202, "faceclear", "清除认证缓存", _ => FaceAuthCommands.ClearAuth());
+
         }
     }
 }

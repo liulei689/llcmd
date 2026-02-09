@@ -1,0 +1,17 @@
+﻿<Window x:Class="CheckInProject.App.AuthWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CheckInProject.App"
+        mc:Ignorable="d"
+        Title="权限验证"
+        WindowStyle="None"
+        WindowState="Maximized"
+        Topmost="True"
+        ResizeMode="NoResize"
+        Background="Black">
+    <Grid>
+        <Frame x:Name="AuthFrame" NavigationUIVisibility="Hidden"/>
+    </Grid>
+</Window>

@@ -1,0 +1,111 @@
+﻿<Page x:Class="CheckInProject.App.Pages.WelcomePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+      xmlns:local="clr-namespace:CheckInProject.App.Pages"
+      xmlns:wpfui="http://schemas.lepo.co/wpfui/2022/xaml"
+      mc:Ignorable="d" 
+      d:DesignHeight="600" d:DesignWidth="900"
+      Title="WelcomePage">
+
+    <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 中央内容区 -->
+        <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="40">
+            <!-- Logo区域 -->
+            <wpfui:SymbolIcon Symbol="Camera24" FontSize="80" Foreground="{DynamicResource SystemAccentColorBrush}" 
+                              HorizontalAlignment="Center" Margin="0,0,0,20"/>
+            
+            <TextBlock Text="人脸签到系统" FontSize="36" FontWeight="Bold" 
+                       HorizontalAlignment="Center" Margin="0,0,0,10"/>
+            
+            <TextBlock Text="智能 · 高效 · 便捷" FontSize="16" Opacity="0.6"
+                       HorizontalAlignment="Center" Margin="0,0,0,40"/>
+            
+            <!-- 快捷操作卡片 -->
+            <UniformGrid Columns="3" Margin="0,0,0,40">
+                <!-- 动态识别卡片 -->
+                <Border Background="{DynamicResource ControlFillColorDefaultBrush}" 
+                        CornerRadius="12" Padding="30,25" Margin="10"
+                        BorderBrush="{DynamicResource SystemAccentColorBrush}" BorderThickness="2"
+                        Cursor="Hand" MouseLeftButtonUp="DynamicScanCard_Click">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <wpfui:SymbolIcon Symbol="Scan24" FontSize="40" 
+                                          Foreground="{DynamicResource SystemAccentColorBrush}"
+                                          HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                        <TextBlock Text="开始签到" FontSize="18" FontWeight="SemiBold" 
+                                   HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                        <TextBlock Text="摄像头实时人脸识别" FontSize="12" Opacity="0.5"
+                                   HorizontalAlignment="Center" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- 数据管理卡片 -->
+                <Border Background="{DynamicResource ControlFillColorDefaultBrush}" 
+                        CornerRadius="12" Padding="30,25" Margin="10"
+                        Cursor="Hand" MouseLeftButtonUp="DataManageCard_Click">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <wpfui:SymbolIcon Symbol="Database24" FontSize="40" 
+                                          Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                          HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                        <TextBlock Text="人脸管理" FontSize="18" FontWeight="SemiBold" 
+                                   HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                        <TextBlock Text="录入/编辑/删除人脸数据" FontSize="12" Opacity="0.5"
+                                   HorizontalAlignment="Center" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- 记录查询卡片 -->
+                <Border Background="{DynamicResource ControlFillColorDefaultBrush}" 
+                        CornerRadius="12" Padding="30,25" Margin="10"
+                        Cursor="Hand" MouseLeftButtonUp="RecordsCard_Click">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" ShadowDepth="0" Opacity="0.2"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <wpfui:SymbolIcon Symbol="History24" FontSize="40" 
+                                          Foreground="{DynamicResource SystemFillColorAttentionBrush}"
+                                          HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                        <TextBlock Text="签到记录" FontSize="18" FontWeight="SemiBold" 
+                                   HorizontalAlignment="Center" Margin="0,0,0,5"/>
+                        <TextBlock Text="查看打卡记录和统计" FontSize="12" Opacity="0.5"
+                                   HorizontalAlignment="Center" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+            
+            <!-- 统计信息 -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Opacity="0.6">
+                <wpfui:SymbolIcon Symbol="People24" FontSize="16" Margin="0,0,5,0"/>
+                <TextBlock Text="已录入人脸：" FontSize="14"/>
+                <TextBlock x:Name="FaceCountText" Text="0" FontSize="14" FontWeight="SemiBold" Margin="0,0,20,0"/>
+                <wpfui:SymbolIcon Symbol="CalendarCheckmark24" FontSize="16" Margin="0,0,5,0"/>
+                <TextBlock Text="今日签到：" FontSize="14"/>
+                <TextBlock x:Name="TodayCheckInText" Text="0" FontSize="14" FontWeight="SemiBold"/>
+            </StackPanel>
+        </StackPanel>
+        
+        <!-- 底部状态栏 -->
+        <Border Grid.Row="2" VerticalAlignment="Bottom" Padding="20,15"
+                Background="{DynamicResource ControlFillColorDefaultBrush}">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                <wpfui:SymbolIcon Symbol="Info24" FontSize="14" Opacity="0.5" Margin="0,0,8,0"/>
+                <TextBlock Text="提示：首次使用请先在" FontSize="12" Opacity="0.5"/>
+                <TextBlock Text="人脸管理" FontSize="12" Opacity="0.5" FontWeight="SemiBold" Margin="3,0"/>
+                <TextBlock Text="中录入人脸数据" FontSize="12" Opacity="0.5"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</Page>

@@ -1,4 +1,15 @@
 <Solution>
+  <Folder Name="/face/">
+    <Project Path="CheckInProject-master/CheckInProject.App/CheckInProject.App.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="CheckInProject-master/CheckInProject.CheckInCore/CheckInProject.CheckInCore.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="CheckInProject-master/CheckInProject.PersonDataCore/CheckInProject.PersonDataCore.csproj">
+      <Platform Project="x64" />
+    </Project>
+  </Folder>
   <Project Path="ClipboardMonitor/ClipboardMonitor.csproj" />
   <Project Path="ll/ll.csproj" />
 </Solution>
