@@ -23,15 +23,30 @@ public static class GuardianManager
     private static readonly Dictionary<string, DateTime> _lastEventAt = new();
     private static readonly object _eventGate = new();
 
+    /// <summary>
+    /// 切换守护模式（手动触发，退出时需要面部识别验证）
+    /// </summary>
     public static void ToggleGuardianMode(string[] args)
     {
         lock (_lock)
         {
             if (_isActive)
             {
-                StopGuardianMode();
-                Utils.SendEmailTo("系统通知 - 守护模式", $"系统于 {DateTime.Now} 在 {Environment.MachineName} 上退出守护模式");
-                LogManager.Log("Info", "System", $"退出守护模式 - {Environment.MachineName}");
+                // 手动退出守护模式需要面部识别验证
+                var result = FaceAuthCommands.Authenticate();
+                
+                if (result.Success)
+                {
+                    UI.PrintSuccess($"面部识别通过，用户: {result.UserName}");
+                    StopGuardianModeInternal();
+                    Utils.SendEmailTo("系统通知 - 守护模式", $"系统于 {DateTime.Now} 在 {Environment.MachineName} 上退出守护模式");
+                    LogManager.Log("Info", "System", $"退出守护模式 - {Environment.MachineName}");
+                }
+                else
+                {
+                    UI.PrintError($"面部识别验证失败: {result.ErrorMessage}");
+                    UI.PrintInfo("守护模式继续运行");
+                }
             }
             else
             {
@@ -40,6 +55,47 @@ public static class GuardianManager
                 LogManager.Log("Info", "System", $"进入守护模式 - {Environment.MachineName}");
             }
         }
+    }
+
+    /// <summary>
+    /// 自动退出守护模式（不需要面部识别，由空闲监控等自动触发）
+    /// </summary>
+    public static void AutoExitGuardianMode()
+    {
+        lock (_lock)
+        {
+            if (!_isActive) return;
+            StopGuardianModeInternal();
+            Utils.SendEmailTo("系统通知 - 守护模式", $"系统于 {DateTime.Now} 在 {Environment.MachineName} 上自动退出守护模式");
+            LogManager.Log("Info", "System", $"自动退出守护模式 - {Environment.MachineName}");
+        }
+    }
+
+    /// <summary>
+    /// 内部停止守护模式（无锁，外部需加锁）
+    /// </summary>
+    private static void StopGuardianModeInternal()
+    {
+        _isActive = false;
+        _effectCts?.Cancel();
+        
+        Console.ResetColor();
+        Console.Clear();
+        Console.ForegroundColor = ConsoleColor.Cyan;
+        Console.WriteLine("\n [!] 正在注销守护协议：正在 detach 核心监听钩子...");
+
+        IntPtr hWnd = NativeMethods.GetConsoleWindow();
+        NativeMethods.SetWindowPos(hWnd, NativeMethods.HWND_NOTOPMOST, 0, 0, 0, 0, NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE);
+
+        NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
+        Thread.Sleep(200);
+        NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE);
+
+        Console.CursorVisible = true;
+        Console.Clear();
+        UI.PrintSuccess("守护模式已关闭。系统转入后台静默监听。");
+        Program.ShowHome();
+        Program.GuardianStartTime = null;
     }
 
     public static bool IsActive
@@ -72,32 +128,162 @@ public static class GuardianManager
         Task.Run(() => DashboardMasterLoop(token), token);
     }
 
+    /// <summary>
+    /// 停止守护模式（内部使用，已包含在 KeyListenerLoop 的面部识别流程中）
+    /// </summary>
     private static void StopGuardianMode()
     {
         lock (_lock)
         {
             if (!_isActive) return;
-            _isActive = false;
-            _effectCts?.Cancel();
+            StopGuardianModeInternal();
         }
+    }
 
+    /// <summary>
+    /// 显示全屏进度条（5秒，无闪烁）
+    /// </summary>
+    private static void ShowProgressScreen(int percent)
+    {
+        int w = Console.WindowWidth;
+        int h = Console.WindowHeight;
+        int centerY = h / 2;
+        int barWidth = Math.Min(60, w - 20);
+        
+        // 只更新进度条那一行，不刷新整个屏幕
+        int filled = (int)(barWidth * percent / 100.0);
+        int empty = barWidth - filled;
+        
+        string filledPart = filled > 0 ? new string('█', filled) : "";
+        string emptyPart = empty > 0 ? new string('░', empty) : "";
+        string barLine = $"║{filledPart}{emptyPart}║ {percent}%";
+        int pad = Math.Max(0, (w - barLine.Length) / 2);
+        
+        // 设置进度条颜色
+        if (percent < 30)
+            Console.ForegroundColor = ConsoleColor.Cyan;
+        else if (percent < 70)
+            Console.ForegroundColor = ConsoleColor.Yellow;
+        else
+            Console.ForegroundColor = ConsoleColor.Green;
+            
+        // 只更新进度条位置
+        Console.SetCursorPosition(pad, centerY + 1);
+        Console.Write(barLine);
         Console.ResetColor();
+    }
+
+    /// <summary>
+    /// 初始化进度条界面（只调用一次）
+    /// </summary>
+    private static void InitProgressScreen()
+    {
         Console.Clear();
-        Console.ForegroundColor = ConsoleColor.Cyan;
-        Console.WriteLine("\n [!] 正在注销守护协议：正在 detach 核心监听钩子...");
+        Console.CursorVisible = false;
+        
+        int w = Console.WindowWidth;
+        int h = Console.WindowHeight;
+        int centerY = h / 2;
+        int barWidth = Math.Min(60, w - 20);
+        
+        // 标题
+        string title = " 面部识别验证 ";
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.SetCursorPosition((w - title.Length) / 2, centerY - 4);
+        Console.Write(title);
+        
+        // 副标题
+        string subtitle = "正在启动面部识别组件，请稍候...";
+        Console.ForegroundColor = ConsoleColor.Gray;
+        Console.SetCursorPosition((w - subtitle.Length) / 2, centerY - 2);
+        Console.Write(subtitle);
+        
+        // 进度条边框
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.SetCursorPosition((w - barWidth - 2) / 2, centerY);
+        Console.Write($"╔{new string('═', barWidth)}╗");
+        Console.SetCursorPosition((w - barWidth - 2) / 2, centerY + 2);
+        Console.Write($"╚{new string('═', barWidth)}╝");
+        
+        // 初始进度条
+        Console.SetCursorPosition((w - barWidth - 2) / 2, centerY + 1);
+        Console.Write($"║{new string('░', barWidth)}║ 0%");
+        
+        Console.ResetColor();
+    }
 
-        IntPtr hWnd = NativeMethods.GetConsoleWindow();
-        NativeMethods.SetWindowPos(hWnd, NativeMethods.HWND_NOTOPMOST, 0, 0, 0, 0, NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE);
-
-        NativeMethods.ShowWindow(hWnd, NativeMethods.SW_RESTORE);
-        Thread.Sleep(200);
-        NativeMethods.ShowWindow(hWnd, NativeMethods.SW_MINIMIZE);
-
-        Console.CursorVisible = true;
-        Console.Clear();
-        UI.PrintSuccess("守护模式已关闭。系统转入后台静默监听。");
-        Program.ShowHome();
-        Program.GuardianStartTime = null;
+    /// <summary>
+    /// 尝试通过面部识别退出守护模式
+    /// 成功返回true并退出守护模式，失败返回false继续守护
+    /// </summary>
+    private static async Task<bool> TryExitWithFaceAuth(CancellationToken token)
+    {
+        try
+        {
+            EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 守护：请求退出，启动面部识别验证...");
+            
+            // 初始化界面（只清屏一次）
+            InitProgressScreen();
+            
+            // 5秒进度条动画（只更新进度部分）
+            int[] delays = new[] { 80, 80, 70, 70, 60, 60, 50, 50, 40, 50,
+                                   40, 40, 50, 40, 40, 50, 40, 40, 50, 40,
+                                   40, 40, 50, 40, 40, 40, 50, 40, 40, 40,
+                                   50, 40, 40, 50, 40, 40, 50, 40, 50, 60,
+                                   50, 60, 50, 60, 70, 60, 70, 80, 70, 80 };
+            
+            for (int i = 0; i <= 100; i += 2)
+            {
+                ShowProgressScreen(i);
+                int delayIndex = i / 2;
+                await Task.Delay(delayIndex < delays.Length ? delays[delayIndex] : 50, token);
+            }
+            
+            // 进度条完成后，立即启动面部识别程序（不等提示）
+            Console.CursorVisible = false;
+            
+            // 先异步启动面部识别程序（不等待）
+            var authTask = Task.Run(() => FaceAuthCommands.Authenticate(), token);
+            
+            // 再显示启动提示（给用户反馈）
+            int w = Console.WindowWidth;
+            int h = Console.WindowHeight;
+            string done = "正在启动面部识别程序...";
+            Console.ForegroundColor = ConsoleColor.Green;
+            Console.SetCursorPosition((w - done.Length) / 2, h / 2 + 4);
+            Console.Write(done);
+            
+            string hint = "（请面对摄像头进行验证）";
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.SetCursorPosition((w - hint.Length) / 2, h / 2 + 6);
+            Console.Write(hint);
+            
+            // 等待面部识别程序启动和完成（最多等30秒）
+            // 这样提示会一直显示直到程序窗口出来
+            var result = await authTask;
+            
+            if (result.Success)
+            {
+                EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 守护：面部识别通过，用户 {result.UserName}");
+                await Task.Delay(200, token);
+                StopGuardianMode();
+                return true;
+            }
+            else
+            {
+                EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 守护：面部识别未通过 - {result.ErrorMessage}");
+                return false;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 守护：面部识别异常 - {ex.Message}");
+            return false;
+        }
     }
 
     public static void EnqueueEvent(string text)
@@ -150,19 +336,30 @@ public static class GuardianManager
                     var key = Console.ReadKey(true);
                     if (key.Key == ConsoleKey.Escape)
                     {
-                        StopGuardianMode();
-                        return;
+                        // ESC 也需要面部识别验证
+                        if (await TryExitWithFaceAuth(token))
+                        {
+                            return;
+                        }
+                        // 验证失败，继续守护模式
+                        EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 守护：面部识别验证失败，继续守护模式");
+                        cmd.Clear();
                     }
 
-                    // 仅用于退出：输入 gd 后回车
+                    // 仅用于退出：输入 gd 后回车（需面部识别验证）
                     if (key.Key == ConsoleKey.Enter)
                     {
                         var text = cmd.ToString().Trim();
                         cmd.Clear();
                         if (text.Equals("gd", StringComparison.OrdinalIgnoreCase))
                         {
-                            StopGuardianMode();
-                            return;
+                            // 面部识别验证后才允许退出
+                            if (await TryExitWithFaceAuth(token))
+                            {
+                                return;
+                            }
+                            // 验证失败，继续守护模式
+                            EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 守护：面部识别验证失败，继续守护模式");
                         }
                     }
                     else if (key.Key == ConsoleKey.Backspace)
@@ -332,7 +529,7 @@ public static class GuardianManager
                         EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 采样：进程监听 内存>32MB变动/线程变动/句柄变动");
                         break;
                     case 17:
-                        EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 采样：按键  gd回车或ESC退出");
+                        EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 采样：按键  gd/ESC触发面部识别退出");
                         break;
                     case 18:
                         EnqueueEvent($"[{DateTime.Now:HH:mm:ss}] 采样：CPU(触发) 使用率>=15%才上报");
@@ -409,7 +606,7 @@ public static class GuardianManager
             Console.ForegroundColor = frame;
             WriteAt(leftX, topY, new string('-', Math.Min(fullW, w - leftX - 1)));
             Console.ForegroundColor = accent;
-            WriteAt(leftX, topY + 1, "守护模式：已启用（输入 gd 回车退出）");
+            WriteAt(leftX, topY + 1, "守护模式：已启用（面部识别验证后退出）");
             Console.ForegroundColor = faint;
             WriteAt(leftX + 42, topY + 1, $"主机:{Environment.MachineName}  在线:{TimeSpan.FromMilliseconds(Environment.TickCount64):dd\\:hh\\:mm\\:ss}  时间:{DateTime.Now:HH:mm:ss}");
             WriteAt(leftX + 42, topY + 2, $"总运行时长: {Utils.FormatRuntime(Program.TotalRuntimeSeconds)}");
@@ -469,7 +666,7 @@ public static class GuardianManager
             WriteAt(col3 + 2, panelTop + 3, "网络监听 : 已启用");
             WriteAt(col3 + 2, panelTop + 4, "磁盘监听 : 已启用");
             WriteAt(col3 + 2, panelTop + 5, "按键监听 : 已启用");
-            WriteAt(col3 + 2, panelTop + 6, "退出命令 : gd + 回车");
+            WriteAt(col3 + 2, panelTop + 6, "退出方式 : 面部识别验证");
             Console.ForegroundColor = faint;
             WriteAt(col3 + 2, panelTop + 8, $"事件队列 : {_events.Count}");
             WriteAt(col3 + 2, panelTop + 9, "刷新周期 : 100ms");

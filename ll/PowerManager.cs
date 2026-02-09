@@ -258,9 +258,30 @@ public static class PowerManager
                     else if (!isIdleMode && guardianAutoActive)
                     {
                         guardianAutoActive = false;
-                        // Only auto-exit what we auto-entered.
+                        // 空闲时间自动退出守护模式也需要面部识别验证
                         if (GuardianManager.IsActive)
-                            GuardianManager.ToggleGuardianMode([]);
+                        {
+                            // 先异步启动面部识别程序（让窗口尽快出现）
+                            var authTask = Task.Run(() => FaceAuthCommands.Authenticate(), token);
+                            
+                            // 同时显示全屏进度条
+                            await ShowFaceAuthProgressScreen("空闲结束 - 面部识别验证", token);
+                            
+                            // 等待面部识别完成
+                            var result = await authTask;
+                            if (result.Success)
+                            {
+                                UI.PrintSuccess($"面部识别通过，退出守护模式");
+                                GuardianManager.AutoExitGuardianMode();
+                            }
+                            else
+                            {
+                                UI.PrintError($"面部识别验证失败: {result.ErrorMessage}");
+                                UI.PrintInfo("继续守护模式");
+                                // 验证失败，重新进入空闲模式计数
+                                guardianAutoActive = true;
+                            }
+                        }
                     }
                     
                     if (idleSeconds >= idleThresholdSeconds)
@@ -305,6 +326,87 @@ public static class PowerManager
                 TaskManager.Clear(localCts);
             }
         });
+    }
+
+    /// <summary>
+    /// 显示全屏进度条（5秒，无闪烁）
+    /// </summary>
+    private static async Task ShowFaceAuthProgressScreen(string title, CancellationToken token)
+    {
+        Console.Clear();
+        Console.CursorVisible = false;
+        
+        int w = Console.WindowWidth;
+        int h = Console.WindowHeight;
+        int centerY = h / 2;
+        int barWidth = Math.Min(60, w - 20);
+        
+        // 初始化界面（只画一次边框）
+        Console.ForegroundColor = ConsoleColor.White;
+        Console.SetCursorPosition((w - title.Length) / 2, centerY - 4);
+        Console.Write(title);
+        
+        string subtitle = "正在启动面部识别组件，请稍候...";
+        Console.ForegroundColor = ConsoleColor.Gray;
+        Console.SetCursorPosition((w - subtitle.Length) / 2, centerY - 2);
+        Console.Write(subtitle);
+        
+        Console.ForegroundColor = ConsoleColor.DarkGray;
+        Console.SetCursorPosition((w - barWidth - 2) / 2, centerY);
+        Console.Write($"╔{new string('═', barWidth)}╗");
+        Console.SetCursorPosition((w - barWidth - 2) / 2, centerY + 2);
+        Console.Write($"╚{new string('═', barWidth)}╝");
+        Console.SetCursorPosition((w - barWidth - 2) / 2, centerY + 1);
+        Console.Write($"║{new string('░', barWidth)}║ 0%");
+        Console.ResetColor();
+        
+        // 5秒进度条动画（只更新进度部分）
+        int[] delays = new[] { 80, 80, 70, 70, 60, 60, 50, 50, 40, 50,
+                               40, 40, 50, 40, 40, 50, 40, 40, 50, 40,
+                               40, 40, 50, 40, 40, 40, 50, 40, 40, 40,
+                               50, 40, 40, 50, 40, 40, 50, 40, 50, 60,
+                               50, 60, 50, 60, 70, 60, 70, 80, 70, 80 };
+        
+        for (int percent = 0; percent <= 100; percent += 2)
+        {
+            int filled = (int)(barWidth * percent / 100.0);
+            int empty = barWidth - filled;
+            string filledPart = filled > 0 ? new string('█', filled) : "";
+            string emptyPart = empty > 0 ? new string('░', empty) : "";
+            string barLine = $"║{filledPart}{emptyPart}║ {percent}%";
+            int pad = Math.Max(0, (w - barLine.Length) / 2);
+            
+            if (percent < 30)
+                Console.ForegroundColor = ConsoleColor.Cyan;
+            else if (percent < 70)
+                Console.ForegroundColor = ConsoleColor.Yellow;
+            else
+                Console.ForegroundColor = ConsoleColor.Green;
+                
+            Console.SetCursorPosition(pad, centerY + 1);
+            Console.Write(barLine);
+            Console.ResetColor();
+            
+            int delayIndex = percent / 2;
+            await Task.Delay(delayIndex < delays.Length ? delays[delayIndex] : 50, token);
+        }
+        
+        // 完成提示 - 显示在进度条下方，不清屏
+        string done = "正在启动面部识别程序...";
+        Console.ForegroundColor = ConsoleColor.Green;
+        Console.SetCursorPosition((w - done.Length) / 2, centerY + 4);
+        Console.Write(done);
+        
+        string hint = "（请面对摄像头）";
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.SetCursorPosition((w - hint.Length) / 2, centerY + 6);
+        Console.Write(hint);
+        
+        // 等待一小段时间让用户看到提示，给面部识别程序启动时间
+        await Task.Delay(1500, token);
+        
+        Console.ResetColor();
+        // 注意：这里不清屏，让面部识别程序自己覆盖显示
     }
 
     public static void ShowStatus()
