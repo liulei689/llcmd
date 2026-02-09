@@ -46,6 +46,7 @@ namespace CheckInProject.PersonDataCore.Implementation
                 existing.Name = faceData.Name;
                 existing.ClassID = faceData.ClassID;
                 existing.FaceEncodingString = faceData.FaceEncodingString;
+                existing.ProfilePicture = faceData.ProfilePicture; // 保留图片
                 await DatabaseService.SaveChangesAsync();
             }
         }

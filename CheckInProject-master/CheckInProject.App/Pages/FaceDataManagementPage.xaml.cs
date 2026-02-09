@@ -155,6 +155,42 @@ namespace CheckInProject.App.Pages
         private Bitmap? _lastCapturedBitmap = null;
         private StringPersonDataBase? _editingItem = null;
 
+        #region 图片处理工具方法
+        
+        /// <summary>将 Bitmap 转换为 Base64 字符串（JPEG 格式）</summary>
+        private string BitmapToBase64(Bitmap bitmap)
+        {
+            using (var ms = new MemoryStream())
+            {
+                bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);
+                return Convert.ToBase64String(ms.ToArray());
+            }
+        }
+
+        /// <summary>将 Bitmap 转换为 BitmapImage</summary>
+        private BitmapImage? BitmapToBitmapImage(Bitmap? bitmap)
+        {
+            if (bitmap == null) return null;
+            try
+            {
+                using (var ms = new MemoryStream())
+                {
+                    bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    ms.Position = 0;
+                    var result = new BitmapImage();
+                    result.BeginInit();
+                    result.CacheOption = BitmapCacheOption.OnLoad;
+                    result.StreamSource = ms;
+                    result.EndInit();
+                    result.Freeze();
+                    return result;
+                }
+            }
+            catch { return null; }
+        }
+
+        #endregion
+
         public FaceDataManagementPage(IServiceProvider serviceProvider)
         {
             ServiceProvider = serviceProvider;
@@ -267,6 +303,8 @@ namespace CheckInProject.App.Pages
                         using (var bitmap = new Bitmap(imageFile))
                         {
                             Bitmap processBitmap = bitmap;
+                            Bitmap? originalBitmap = null;
+                            
                             if (TrimImageWhenEncoding)
                             {
                                 var faceModels = FaceRecognitionAPI.GetFaceImage(bitmap);
@@ -276,15 +314,23 @@ namespace CheckInProject.App.Pages
                                     continue;
                                 }
                                 processBitmap = faceModels.FaceImages.First();
+                                originalBitmap = new Bitmap(bitmap); // 保存原图用于显示
                             }
                             else
                             {
                                 // 复制一份以避免 using 结束后被释放
                                 processBitmap = new Bitmap(bitmap);
+                                originalBitmap = processBitmap;
                             }
 
                             var faceData = FaceRecognitionAPI.CreateFaceData(processBitmap, fileName, ++index);
+                            // 保存图片（用于预览）
+                            faceData.ProfilePicture = BitmapToBase64(originalBitmap);
+                            
+                            if (originalBitmap != null && originalBitmap != processBitmap)
+                                originalBitmap.Dispose();
                             processBitmap.Dispose();
+                            
                             faceDataList.Add(faceData);
                             successCount++;
                         }
@@ -427,6 +473,8 @@ namespace CheckInProject.App.Pages
             try
             {
                 Bitmap processBitmap;
+                Bitmap originalBitmap;
+                
                 if (TrimImageWhenEncoding)
                 {
                     var faceModels = FaceRecognitionAPI.GetFaceImage(_previewBitmap);
@@ -436,10 +484,12 @@ namespace CheckInProject.App.Pages
                         return;
                     }
                     processBitmap = faceModels.FaceImages.First();
+                    originalBitmap = new Bitmap(_previewBitmap); // 保存原图用于显示
                 }
                 else
                 {
                     processBitmap = new Bitmap(_previewBitmap);
+                    originalBitmap = processBitmap;
                 }
 
                 uint? classId = null;
@@ -451,6 +501,9 @@ namespace CheckInProject.App.Pages
                 var newId = (uint)(FaceDataList.Count + 1);
                 var faceData = FaceRecognitionAPI.CreateFaceData(processBitmap, name, newId);
                 faceData.ClassID = classId;
+                // 保存原图用于预览
+                faceData.ProfilePicture = BitmapToBase64(originalBitmap);
+                
                 var stringData = faceData.ConvertToStringPersonDataBase();
                 await DatabaseAPI.AddFaceData(stringData);
 
@@ -592,6 +645,7 @@ namespace CheckInProject.App.Pages
             }
 
             Bitmap? processBitmap = null;
+            Bitmap? originalBitmap = null;
             try
             {
                 if (TrimImageWhenEncoding)
@@ -603,11 +657,13 @@ namespace CheckInProject.App.Pages
                         return;
                     }
                     processBitmap = faceModels.FaceImages.First();
+                    originalBitmap = new Bitmap(_lastCapturedBitmap); // 保存原图用于显示
                 }
                 else
                 {
                     // 复制一份，因为 _lastCapturedBitmap 后面会被释放
                     processBitmap = new Bitmap(_lastCapturedBitmap);
+                    originalBitmap = processBitmap;
                 }
 
                 uint? classId = null;
@@ -619,6 +675,9 @@ namespace CheckInProject.App.Pages
                 var newId = (uint)(FaceDataList.Count + 1);
                 var faceData = FaceRecognitionAPI.CreateFaceData(processBitmap, name, newId);
                 faceData.ClassID = classId;
+                // 保存原图用于预览
+                faceData.ProfilePicture = BitmapToBase64(originalBitmap);
+                
                 var stringData = faceData.ConvertToStringPersonDataBase();
                 await DatabaseAPI.AddFaceData(stringData);
 
@@ -636,6 +695,7 @@ namespace CheckInProject.App.Pages
             finally
             {
                 processBitmap?.Dispose();
+                originalBitmap?.Dispose();
                 _lastCapturedBitmap?.Dispose();
                 _lastCapturedBitmap = null;
             }
@@ -657,15 +717,55 @@ namespace CheckInProject.App.Pages
             {
                 _editingItem = data;
                 EditNameTextBox.Text = data.Name ?? "";
-                EditClassIdTextBox.Text = data.ClassID?.ToString() ?? "";
+                // 确保编号正确显示（uint? 转 string）
+                EditClassIdTextBox.Text = data.ClassID.HasValue ? data.ClassID.Value.ToString() : "";
+                
+                // 加载头像预览
+                if (!string.IsNullOrEmpty(data.ProfilePicture))
+                {
+                    try
+                    {
+                        var bytes = Convert.FromBase64String(data.ProfilePicture);
+                        using (var ms = new MemoryStream(bytes))
+                        {
+                            var bitmap = new BitmapImage();
+                            bitmap.BeginInit();
+                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                            bitmap.StreamSource = ms;
+                            bitmap.EndInit();
+                            bitmap.Freeze();
+                            EditProfileImage.Source = bitmap;
+                        }
+                    }
+                    catch { EditProfileImage.Source = null; }
+                }
+                else
+                {
+                    EditProfileImage.Source = null;
+                }
+                
+                // 隐藏列表面板，显示编辑面板
+                DataListPanel.Visibility = Visibility.Collapsed;
                 EditPanel.Visibility = Visibility.Visible;
             }
         }
 
         private void CancelEditButton_Click(object sender, RoutedEventArgs e)
         {
+            CloseEditPanel();
+        }
+
+        private void CloseEditPanelButton_Click(object sender, RoutedEventArgs e)
+        {
+            CloseEditPanel();
+        }
+
+        private void CloseEditPanel()
+        {
             EditPanel.Visibility = Visibility.Collapsed;
+            DataListPanel.Visibility = Visibility.Visible;
             _editingItem = null;
+            EditProfileImage.Source = null;
         }
 
         private async void SaveEditButton_Click(object sender, RoutedEventArgs e)
@@ -690,10 +790,13 @@ namespace CheckInProject.App.Pages
                 {
                     _editingItem.ClassID = null;
                 }
+                // 保留原有的 ProfilePicture，不修改
 
                 await DatabaseAPI.UpdateFaceData(_editingItem);
                 StatusMessage = $"已更新: {name}";
                 EditPanel.Visibility = Visibility.Collapsed;
+                DataListPanel.Visibility = Visibility.Visible;
+                EditProfileImage.Source = null;
                 _editingItem = null;
                 RefreshDataList();
                 MessageBox.Show($"已成功更新: {name}", "成功", MessageBoxButton.OK, MessageBoxImage.Information);

@@ -4,4 +4,5 @@
     <utils:ReversedBooleanToVisibilityConverter x:Key="ReversedBooleanToVisibilityConverter"/>
     <utils:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     <utils:ReversedBooleanToBooleanConverter x:Key="ReversedBooleanToBooleanConverter"/>
+    <utils:Base64ToImageConverter x:Key="Base64ToImageConverter"/>
 </ResourceDictionary>

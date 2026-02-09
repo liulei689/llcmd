@@ -10,7 +10,7 @@
         Style="{StaticResource UiWindow}"
         Icon="/Icon.png"
         Title="人脸签到系统"
-        MinWidth="900" MinHeight="600">
+        MinWidth="900" MinHeight="650">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
