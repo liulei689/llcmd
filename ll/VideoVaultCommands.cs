@@ -174,6 +174,9 @@ public static class VideoVaultCommands
             return Console.ReadLine();
         }
     }
+    // 配置键：存储.llv文件密码
+    private const string LlvPasswordKey = "VideoVault:SavedPassword";
+
     public static void Play(string[] args)
     {
         try { Console.OutputEncoding = Encoding.UTF8; } catch { }
@@ -204,19 +207,44 @@ public static class VideoVaultCommands
             else if (a is "--autodel") autoDelete = true;
             else if (a is "--html5") useHtml5 = true;
         }
+
+        // 如果没有通过参数提供密码，尝试从配置读取
+        bool isFromConfig = false;
         if (string.IsNullOrWhiteSpace(password))
-            password = ReadPassword("请输入密码: ");
+        {
+            password = ConfigManager.GetValue<string>(LlvPasswordKey, null);
+            if (!string.IsNullOrWhiteSpace(password))
+            {
+                isFromConfig = true;
+                UI.PrintInfo("使用已保存的密码...");
+            }
+            else
+            {
+                password = ReadPassword("请输入密码: ");
+            }
+        }
 
         while (true)
         {
             if (PlayOne(file, password, autoDelete, useHtml5))
+            {
+                // 播放成功，如果是新输入的密码，保存到配置
+                if (!isFromConfig && !string.IsNullOrWhiteSpace(password))
+                {
+                    ConfigManager.SetValue(LlvPasswordKey, password);
+                }
                 return;
+            }
+
+            // 密码错误
             password = ReadPassword("密码错误，请重新输入(回车或输入q退出): ");
             if (string.IsNullOrWhiteSpace(password) || password.Trim().Equals("q", StringComparison.OrdinalIgnoreCase) || password.Trim().Equals("exit", StringComparison.OrdinalIgnoreCase))
             {
                 UI.PrintInfo("已取消播放。");
                 return;
             }
+            // 用户重新输入了密码，标记为不是来自配置
+            isFromConfig = false;
         }
     }
 
@@ -295,8 +323,22 @@ public static class VideoVaultCommands
             else if (a is "--autodel") autoDelete = true;
             else if (a is "--html5") useHtml5 = true;
         }
+
+        // 如果没有通过参数提供密码，尝试从配置读取
+        bool isFromConfig = false;
         if (string.IsNullOrWhiteSpace(password))
-            password = ReadPassword("请输入密码(本次会话仅输入一次): ");
+        {
+            password = ConfigManager.GetValue<string>(LlvPasswordKey, null);
+            if (!string.IsNullOrWhiteSpace(password))
+            {
+                isFromConfig = true;
+                UI.PrintInfo("使用已保存的密码...");
+            }
+            else
+            {
+                password = ReadPassword("请输入密码(本次会话仅输入一次): ");
+            }
+        }
 
         bool printedList = false;
         while (true)
@@ -340,14 +382,29 @@ public static class VideoVaultCommands
             var file = files[idx - 1];
             // Try current session password first.
             if (PlayOne(file, password, autoDelete, useHtml5))
+            {
+                // 播放成功，如果是新输入的密码，保存到配置
+                if (!isFromConfig && !string.IsNullOrWhiteSpace(password))
+                {
+                    ConfigManager.SetValue(LlvPasswordKey, password);
+                }
                 continue;
+            }
 
             // This file may use a different password; prompt retry without re-printing list.
             while (true)
             {
                 password = ReadPassword($"密码错误(文件: {Path.GetFileName(file)}), 请重新输入: ");
                 if (PlayOne(file, password, autoDelete, useHtml5))
+                {
+                    // 播放成功，保存新密码
+                    if (!string.IsNullOrWhiteSpace(password))
+                    {
+                        ConfigManager.SetValue(LlvPasswordKey, password);
+                    }
+                    isFromConfig = false;
                     break;
+                }
             }
         }
     }
